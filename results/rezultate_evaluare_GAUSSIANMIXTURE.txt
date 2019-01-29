@@ -1,0 +1,84 @@
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\aggregation.txt
+Purity: 0.9137055837563453
+Entropy: 0.08087807971212979
+RI: 0.9441334115932121
+ARI: 0.8271889460857864
+
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\compound.txt
+Purity: 0.8721804511278195
+Entropy: 0.18658541917177324
+RI: 0.8577096006347527
+ARI: 0.5964216034513251
+
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\d31.txt
+Purity: 0.9403225806451614
+Entropy: 0.05566745783462552
+RI: 0.9935319405843717
+ARI: 0.8972728494295532
+
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\flame.txt
+Purity: 0.775
+Entropy: 0.6059978958020457
+RI: 0.6497907949790795
+ARI: 0.29877804892843235
+
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\jain.txt
+Purity: 0.739946380697051
+Entropy: 0.6514291757721135
+RI: 0.5120643431635389
+ARI: -0.004480545701519964
+
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\pathbased.txt
+Purity: 0.7090301003344481
+Entropy: 0.5221026777510677
+RI: 0.7290296514107427
+ARI: 0.4315350282881521
+
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\r15.txt
+Purity: 0.9966666666666666
+Entropy: 0.005786791505816855
+RI: 0.999120756816917
+ARI: 0.9927781994136302
+
+Rezultate evaluare pentru setul de date F:\IULIA\GITHUB_IULIA\MariaClust\datasets\spiral.txt
+Purity: 0.35256410256410253
+Entropy: 0.9989643171679439
+RI: 0.5540028031989447
+ARI: -0.0054575413375016445
+
+Rezultate evaluare pentru setul de date /home/iuliar/GITHUB_MARIACLUST/MariaClust/datasets/dim032.txt
+Purity: 1.0
+Entropy: 0.0
+RI: 1.0
+ARI: 1.0
+
+Rezultate evaluare pentru setul de date /home/iuliar/GITHUB_MARIACLUST/MariaClust/datasets/dim064.txt
+Purity: 1.0
+Entropy: 0.0
+RI: 1.0
+ARI: 1.0
+
+Rezultate evaluare pentru setul de date /home/iuliar/GITHUB_MARIACLUST/MariaClust/datasets/dim128.txt
+Purity: 1.0
+Entropy: 0.0
+RI: 1.0
+ARI: 1.0
+
+Rezultate evaluare pentru setul de date /home/iuliar/GITHUB_MARIACLUST/MariaClust/datasets/dim256.txt
+Purity: 1.0
+Entropy: 0.0
+RI: 1.0
+ARI: 1.0
+
+Rezultate evaluare pentru setul de date /home/iuliar/GITHUB_MARIACLUST/MariaClust/datasets/dim512.txt
+Purity: 1.0
+Entropy: 0.0
+RI: 1.0
+ARI: 1.0
+
+Rezultate evaluare pentru setul de date /home/iuliar/GITHUB_MARIACLUST/MariaClust/datasets/dim1024.txt
+Purity: 1.0
+Entropy: 0.0
+RI: 1.0
+ARI: 1.0
+

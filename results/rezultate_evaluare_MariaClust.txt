@@ -1,0 +1,93 @@
+python src/mariaClust.py datasets/d31.txt 31 7 0.1 1
+Purity:  0.955939947780679
+Entropy: 0.05138670079995955
+RI:      0.994665974500673
+ARI:      0.9142097843126443
+
+python src/mariaClust.py datasets/flame.txt 2 2 1 3
+Purity:  1.0
+Entropy: 0.0
+RI:       1.0
+ARI:      1.0
+
+python src/mariaClust.py datasets/aggregation.txt 7 8 0.8 1 #cu modificarea adusa pe 11.09.2018
+Purity: 0.99492385786802018
+Entropy:0.011107599359548468
+RI:    0.99705880455885298
+ARI:    0.99132680602141798
+
+python src/mariaClust.py datasets/r15.txt 15 3 0.5 1 #cu modificarea adusa pe 11.09.2018
+Purity: 0.99166666666666647
+Entropy:0.013628797787284097
+RI:     0.99782415136338343
+ARI:    0.98213330104940322
+
+python src/mariaClust.py datasets/pathbased.txt 3 2 0.73 2 #cu modificarea adusa pe 11.09.2018
+Purity: 0.98996655518394649
+Entropy:0.046766981878216374
+RI:      0.98713833583982402
+ARI:     0.97105361920187216
+
+
+python src/mariaClust.py datasets/compound.txt 6 3 1 3 #cu modificarea adusa pe 11.09.2018
+Purity:  0.89223057644110271
+Entropy: 0.11445223510987002
+RI:      0.96678883137491967
+ARI:      0.91126960823834369
+
+python src/mariaClust.py datasets/jain.txt 2 3 1.8 3 2
+Purity: 1.0
+Entropy:0.0
+RI:     1.0
+ARI:    1.0
+
+
+python mariaClust.py jain.txt 2 3 1 2
+Purity: 1.0
+Entropy:0.0
+RI:      1.0
+ARI:     1.0
+
+python mariaClust.py spiral.txt 3 3 1 3
+Purity: 1.0
+Entropy:0.0
+RI:      1.0
+ARI:     1.0
+
+python src/mariaClust.py datasets/dim032.txt 16 3 1 1 32
+Purity: 1.0
+Entropy:0.0
+RI:      1.0
+ARI:     1.0
+
+python src/mariaClust.py datasets/dim064.txt 16 3 1 1 64
+Purity: 1.0
+Entropy:0.0
+RI:      1.0
+ARI:     1.0
+
+python src/mariaClust.py datasets/dim128.txt 16 3 1 1 128
+Purity: 1.0
+Entropy:0.0
+RI:      1.0
+ARI:     1.0
+
+python src/mariaClust.py datasets/dim256.txt 16 3 1 1 256
+Purity: 1.0
+Entropy:0.0
+RI:      1.0
+ARI:     1.0
+
+python src/mariaClust.py datasets/dim512.txt 16 3 1 1 512
+Purity:  1.0
+Entropy:  0.0
+RI:  1.0
+ARI:  1.0
+
+python src/mariaClust.py datasets/dim1024.txt 16 3 1 1 1024
+Purity:  0.9949238578680204
+Entropy:  0.011107599359548467
+RI:  0.997058804558853
+ARI:  0.991326806021418
+
+
