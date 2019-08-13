@@ -20,6 +20,7 @@ Run examples:
 * python src/denlac.py datasets/flame.txt 2 2 1 3 2
 * python src/denlac.py datasets/compound.txt 6 3 1 3 2
 * python src/denlac.py datasets/d31.txt 31 7 0.1 1 2
+* python src/denlac.py datasets/irisDenlacText.txt 3 3 0.25 1 5
 -------------------------------------------------------------------------------------------------
 
 ## Datasets:
