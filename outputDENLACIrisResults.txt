@@ -1,0 +1,13 @@
+nohup: ignoring input
+norm_factor = 4.918060817263491
+We identified 0 outliers from 150 points
+======================================
+norm_factor = 4.918060817263491
+Expand factor 0.25
+len partitions 13
+Purity:   0.9066666666666666
+Entropy:  0.24091237051740758
+RI        0.8893064876957495
+ARI       0.7509105381871944
+Evaluation
+==============================

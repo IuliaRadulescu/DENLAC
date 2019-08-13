@@ -763,7 +763,7 @@ if __name__ == "__main__":
 	content = [l.strip() for l in content]
 
 	for l in content:
-		aux = l.split('\t')
+		aux = l.split(',')
 		for dim in range(no_dims):
 			each_dimension_values[dim].append(float(aux[dim]))
 		list_of_coords = list()
@@ -775,6 +775,6 @@ if __name__ == "__main__":
 
 	denlacInstance = Denlac(no_clusters, no_bins, expand_factor, cluster_distance, no_dims)
 	cluster_points = denlacInstance.cluster_dataset(dataset_xy, dataset_xy_validate, each_dimension_values, clase_points)
-	set_de_date = filename.split("/")[1].split(".")[0].title()
-	color_list = denlacInstance.return_generated_colors()
+	'''set_de_date = filename.split("/")[1].split(".")[0].title()
+	color_list = denlacInstance.return_generated_colors()'''
 	#denlacInstance.plot_clusters(cluster_points, set_de_date, color_list)
