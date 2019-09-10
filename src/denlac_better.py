@@ -48,15 +48,16 @@ class Denlac:
 					partitionsDistancesMatrix[i][j] = distBetweenPartitions
 					distances.append(distBetweenPartitions)
 
-		distances = np.array(distances)
-		smallestDistancesIndices = distances.argsort()[:finalNoClusters]
-
 		joinedPartitionIndex = 0
-		for smallestDistancesIndex in smallestDistancesIndices :
+		numberOfPartitions = len(partitions)
+		for smallestDistancesIndex in range(distances):
 			i = math.floor(smallestDistancesIndex/len(partitions)) #the matrix row: smallestDistancesIndex/number of rows
 			j = smallestDistancesIndex - len(partitions) - 1 #the matrix column: smallestDistancesIndex/number of columns
 			joinedPartitions[joinedPartitionIndex] = partitions[i] + partitions[j]
 			joinedPartitionIndex = joinedPartitionIndex + 1
+			numberOfPartitions = numberOfPartitions - 1
+			if (numberOfPartitions - 1) < finalNoClusters:
+				break
 
 		return joinedPartitions
 	
