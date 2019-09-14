@@ -93,7 +93,7 @@ class Denlac:
 		for i in range(rows):
 			print('i = '+ str(i) + 'columns = '+ str(columns) + 'index = ' + str(index))
     	#check if the index parameter is in the row
-			if (index > columns * i and index <= (columns * i) + columns):
+			if (index >= columns * i and index < (columns * i) + columns):
         		#return x, y
 				print("iese")
 				return (index - columns * i, i);
@@ -134,7 +134,7 @@ class Denlac:
 
 				(j, i) = self.indexToCoords(smallestDistancesIndex, len(partitions), len(partitions))
 					
-				print('i = '+str(i) + 'j = ' + str(j))
+				print('i = '+str(i) + 'j = ' + str(j)+ ' len partitions '+str(len(partitions)))
 				partitionToAdd = partitions[i] + partitions[j]
 
 				self.upsertToJoinedPartitions((i, j), partitionToAdd, joinedPartitions)
