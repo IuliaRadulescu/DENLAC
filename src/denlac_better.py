@@ -778,7 +778,7 @@ if __name__ == "__main__":
 	content = [l.strip() for l in content]
 
 	for l in content:
-		aux = l.split(',')
+		aux = l.split('\t')
 		for dim in range(no_dims):
 			each_dimension_values[dim].append(float(aux[dim]))
 		list_of_coords = list()
