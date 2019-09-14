@@ -34,32 +34,139 @@ class Denlac:
 		self.pixels_partition = list()
 		self.pdf = list()
 
+	def upsertToJoinedPartitions(self, keys, partitionToAdd, joinedPartitions):
 
-	def joinPartitions(self, partitions, finalNoClusters):
+		upserted = False
+		for joinedPartitionsKeys in joinedPartitions:
+			if (keys[0] in joinedPartitionsKeys or keys[1] in joinedPartitionsKeys):		
 
-		partitionsDistancesMatrix = [[0 for x in range(len(partitions))] for y in range(len(partitions))]
+				resulting_list = list(joinedPartitions[joinedPartitionsKeys])
+				resulting_list.extend(x for x in partitionToAdd if x not in resulting_list)
+
+				joinedPartitions[joinedPartitionsKeys] = resulting_list
+				upserted = True
+
+		if (upserted == False):
+			joinedPartitions[keys] = partitionToAdd
+
+
+	def rebuildDictIndexes(self, dictToRebuild, joinedPartitions, mergedIndexes):
+
+		newDict = dict()
+		newDictIdx = 0
+
+		for i in dictToRebuild:
+			if (i not in mergedIndexes):
+				newDict[newDictIdx] = dictToRebuild[i]
+				newDictIdx = newDictIdx + 1
+
+		for joinedPartitionsKeys in joinedPartitions:
+			newDict[newDictIdx] = joinedPartitions[joinedPartitionsKeys]
+			newDictIdx = newDictIdx + 1
+			
+		return newDict
+
+	def computeDistanceIndices(self, partitions):
+	
 		distances = []
-		joinedPartitions = collections.defaultdict(list)
 
 		for i in range(len(partitions)):
 			for j in range(len(partitions)):
-				if(i != j):
+				if (i==j):
+					distBetweenPartitions = -1
+				else:
 					distBetweenPartitions = self.calculate_smallest_pairwise(partitions[i], partitions[j])
-					partitionsDistancesMatrix[i][j] = distBetweenPartitions
-					distances.append(distBetweenPartitions)
+				distances.append(distBetweenPartitions)
 
-		joinedPartitionIndex = 0
+		distances = np.array(distances)
+
+		indicesNegative = np.where(distances < 0)
+		distancesIndices = np.argsort(distances)
+
+		finalIndices = [index for index in distancesIndices if index not in indicesNegative[0]]
+
+		return finalIndices
+
+	#i = index, x = amount of columns, y = amount of rows
+	def indexToCoords(self, index, columns, rows):
+
+		for i in range(rows):
+			print('i = '+ str(i) + 'columns = '+ str(columns) + 'index = ' + str(index))
+    	#check if the index parameter is in the row
+			if (index > columns * i and index <= (columns * i) + columns):
+        		#return x, y
+				print("iese")
+				return (index - columns * i, i);
+
+	def joinPartitions(self, final_partitions, finalNoClusters):
+
+		partitions = dict()
+		partId = 0
+
+		for k in final_partitions:
+			partitions[partId] = list()
+			partId = partId + 1
+
+		partId = 0
+
+		for k in final_partitions:
+			for pixel in final_partitions[k]:
+				kDimensionalPoint = list()
+				for kDim in range(self.no_dims):
+					kDimensionalPoint.append(pixel[kDim])
+				partitions[partId].append(kDimensionalPoint)
+			partId = partId + 1
+
+		print('initial len '+str(len(partitions)))
+
+		print(partitions)
+
 		numberOfPartitions = len(partitions)
-		for smallestDistancesIndex in range(distances):
-			i = math.floor(smallestDistancesIndex/len(partitions)) #the matrix row: smallestDistancesIndex/number of rows
-			j = smallestDistancesIndex - len(partitions) - 1 #the matrix column: smallestDistancesIndex/number of columns
-			joinedPartitions[joinedPartitionIndex] = partitions[i] + partitions[j]
-			joinedPartitionIndex = joinedPartitionIndex + 1
-			numberOfPartitions = numberOfPartitions - 1
-			if (numberOfPartitions - 1) < finalNoClusters:
-				break
 
-		return joinedPartitions
+		distancesIndices = self.computeDistanceIndices(partitions)
+
+		while numberOfPartitions > finalNoClusters:
+			
+			joinedPartitions = dict()
+			mergedIndexes = list()
+
+			for smallestDistancesIndex in distancesIndices:
+
+				(j, i) = self.indexToCoords(smallestDistancesIndex, len(partitions), len(partitions))
+					
+				print('i = '+str(i) + 'j = ' + str(j))
+				partitionToAdd = partitions[i] + partitions[j]
+
+				self.upsertToJoinedPartitions((i, j), partitionToAdd, joinedPartitions)
+
+				mergedIndexes.append(i)
+				mergedIndexes.append(j)
+
+				print("in if "+str(len(partitions)))
+
+				numberOfPartitions = numberOfPartitions - 1
+
+				if numberOfPartitions <= finalNoClusters:
+					break;
+
+			mergedIndexes = set(mergedIndexes)
+			partitions = self.rebuildDictIndexes(partitions, joinedPartitions, mergedIndexes)
+
+			if(self.no_dims==2):
+				#plt.contourf(xx, yy, f, cmap='Blues')
+				#final plot
+				for k in partitions:
+					c = self.random_color_scaled()
+					for point in partitions[k]:
+						plt.scatter(point[0], point[1], color=c)
+				plt.show()
+
+			numberOfPartitions = len(partitions)
+			distancesIndices = self.computeDistanceIndices(partitions)
+
+
+
+		return partitions
 	
 
 	def compute_pdf_kde_scipy(self, dataset_xy, each_dimension_values):
@@ -564,13 +671,13 @@ class Denlac:
 		
 		final_partitions, noise = self.split_partitions(partition_dict) #functie care scindeaza partitiile
 		
-		'''if(self.no_dims==2):
+		if(self.no_dims==2):
 			for k in final_partitions:
 				color = self.random_color_scaled()
 				for pixel in final_partitions[k]:
 					plt.scatter(pixel[0], pixel[1], color=color)
 
-			plt.show()'''
+			plt.show()
 
 
 		joinedPartitions = collections.defaultdict(list)
@@ -584,18 +691,18 @@ class Denlac:
 
 
 		#reassign the noise to the class that contains the nearest neighbor
-		for noise_point in noise:
-			#determine which is the closest cluster to noise_point
-			closest_centroid = 0
-			minDist = 99999
-			for centroid in intermediary_centroids:
-				for joinedPartitionIndex in joinedPartitions:
-					for pixel in joinedPartitions[joinedPartitionIndex]:
-						dist = self.DistFunc(noise_point, pixel)
-						if(dist < minDist):
-							minDist = dist
-							closest_centroid = centroid
-				joinedPartitions[joinedPartitionIndex].append(noise_point)
+		# for noise_point in noise:
+		# 	#determine which is the closest cluster to noise_point
+		# 	closest_centroid = 0
+		# 	minDist = 99999
+		# 	for centroid in intermediary_centroids:
+		# 		for joinedPartitionIndex in joinedPartitions:
+		# 			for pixel in joinedPartitions[joinedPartitionIndex]:
+		# 				dist = self.DistFunc(noise_point, pixel)
+		# 				if(dist < minDist):
+		# 					minDist = dist
+		# 					closest_centroid = centroid
+		# 		joinedPartitions[joinedPartitionIndex].append(noise_point)
 
 		self.evaluate_cluster(clase_points, joinedPartitions)
 		print("Evaluation")
@@ -671,7 +778,7 @@ if __name__ == "__main__":
 	content = [l.strip() for l in content]
 
 	for l in content:
-		aux = l.split('\t')
+		aux = l.split(',')
 		for dim in range(no_dims):
 			each_dimension_values[dim].append(float(aux[dim]))
 		list_of_coords = list()
