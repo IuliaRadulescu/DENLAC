@@ -1,0 +1,6 @@
+Rezultate evaluare pentru setul de date /home/iuliamaria/DENLAC/DENLAC/datasets/irisDenlacText.txt
+Purity: 0.96
+Entropy: 0.11570953520833441
+RI: 0.9495302013422818
+ARI: 0.8859501978730681
+

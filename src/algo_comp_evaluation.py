@@ -304,11 +304,16 @@ class Colors:
 
 if __name__ == "__main__":
 	
-	home_path = "F:\\IULIA\\GITHUB_MARIACLUST\\MariaClust\\datasets\\"
-	filenames = [home_path+"aggregation.txt", home_path+"compound.txt", home_path+"d31.txt", home_path+"flame.txt", home_path+"jain.txt", home_path+"pathbased.txt", home_path+"r15.txt", home_path+"spiral.txt"]
+	home_path = "/home/iuliamaria/DENLAC/DENLAC/datasets/"
+	'''filenames = [home_path+"aggregation.txt", home_path+"compound.txt", home_path+"d31.txt", home_path+"flame.txt", home_path+"jain.txt", home_path+"pathbased.txt", home_path+"r15.txt", home_path+"spiral.txt"]
 	dataset_names = ["Aggregation", "Compound", "D31", "Flame", "Jain", "Pathbased", "R15", "Spiral"]
 	no_clusters_all = [7, 6, 31, 2, 2, 3, 15, 3]
-	no_dims_all = [2, 2, 2, 2, 2, 2, 2, 2]
+	no_dims_all = [2, 2, 2, 2, 2, 2, 2, 2]'''
+
+	filenames = [home_path+'irisDenlacText.txt']
+	dataset_names = ["Iris"]
+	no_clusters_all = [3]
+	no_dims_all = [5]
 
 	#multidimensional
 	'''filenames = [home_path+"dim032.txt", home_path+"dim064.txt", home_path+"dim128.txt", home_path+"dim256.txt", home_path+"dim512.txt"]
@@ -338,7 +343,7 @@ if __name__ == "__main__":
 		content = [l.strip() for l in content]
 
 		for l in content:
-			aux = l.split('\t')
+			aux = l.split(',')
 			for dim in range(no_dims):
 				each_dimension_values[dim].append(float(aux[dim]))
 			list_of_coords = list()
@@ -350,29 +355,29 @@ if __name__ == "__main__":
 
 		evaluateAlg = EvaluateAlgorithms(no_dims)
 	
-		'''cluster_points = evaluateAlg.runKMeans(no_clusters, dataset_xy)
-		evaluateAlg.plot_clusters(cluster_points, "KMEANS", dataset_names[nr_crt], color_list)
-		#evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "KMEANS", dataset_names[nr_crt])
+		cluster_points = evaluateAlg.runKMeans(no_clusters, dataset_xy)
+		#evaluateAlg.plot_clusters(cluster_points, "KMEANS", dataset_names[nr_crt], color_list)
+		evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "KMEANS", dataset_names[nr_crt])
 		
 		cluster_points = evaluateAlg.runBirch(no_clusters, dataset_xy)
-		evaluateAlg.plot_clusters(cluster_points, "BIRCH", dataset_names[nr_crt], color_list)
-		#evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "BIRCH", dataset_names[nr_crt])
+		#evaluateAlg.plot_clusters(cluster_points, "BIRCH", dataset_names[nr_crt], color_list)
+		evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "BIRCH", dataset_names[nr_crt])
 
 		cluster_points = evaluateAlg.runGaussianMixture(no_clusters, dataset_xy)
-		evaluateAlg.plot_clusters(cluster_points, "GAUSSIANMIXTURE", dataset_names[nr_crt], color_list)
-		#evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "GAUSSIANMIXTURE", dataset_names[nr_crt])
+		#evaluateAlg.plot_clusters(cluster_points, "GAUSSIANMIXTURE", dataset_names[nr_crt], color_list)
+		evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "GAUSSIANMIXTURE", dataset_names[nr_crt])
 
 		cluster_points = evaluateAlg.runSpectralClustering(no_clusters, dataset_xy)
-		evaluateAlg.plot_clusters(cluster_points, "SPECTRALCLUSTERING", dataset_names[nr_crt], color_list)
-		#evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "SPECTRALCLUSTERING", dataset_names[nr_crt])
+		#evaluateAlg.plot_clusters(cluster_points, "SPECTRALCLUSTERING", dataset_names[nr_crt], color_list)
+		evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "SPECTRALCLUSTERING", dataset_names[nr_crt])
 
 		cluster_points = evaluateAlg.runCURE(no_clusters, dataset_xy)
-		evaluateAlg.plot_clusters(cluster_points, "CURE", dataset_names[nr_crt], color_list)
-		#evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "CURE", dataset_names[nr_crt])'''
+		#evaluateAlg.plot_clusters(cluster_points, "CURE", dataset_names[nr_crt], color_list)
+		evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "CURE", dataset_names[nr_crt])
 		
 		cluster_points = evaluateAlg.runCLARANS(no_clusters, dataset_xy)
-		evaluateAlg.plot_clusters(cluster_points, "CLARANS", dataset_names[nr_crt], color_list)
-		#evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "CLARANS", dataset_names[nr_crt])
+		#evaluateAlg.plot_clusters(cluster_points, "CLARANS", dataset_names[nr_crt], color_list)
+		evaluateAlg.evaluate_cluster(clase_points, cluster_points, filename, "CLARANS", dataset_names[nr_crt])
 
 		'''if(nr_crt == 0):
 			mean_dist = evaluateAlg.get_closest_mean(dataset_xy, 0.0025)
