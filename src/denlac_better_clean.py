@@ -253,7 +253,7 @@ class Denlac:
 
 		for point in self.points_partition:
 			deja_parsati = list()
-			if(point[no_dims+1] > mean_pdf):
+			if(point[self.no_dims+1] > mean_pdf):
 				while(k>0):
 					neigh_id = 0
 					minDist = 99999
@@ -509,19 +509,13 @@ class Denlac:
 
 		X = [X[q] for q in range(len(X)) if q not in outliers_iqr_pdf]
 		y = [X[q] for q in range(len(X))]
-		for dim in range(no_dims):
+		for dim in range(self.no_dims):
 			each_dimension_values[dim] = [X[q][dim] for q in range(len(X))]
 
 		#recalculez pdf, ca altfel se produc erori
 
 		self.pdf = self.computeKDE(X, each_dimension_values) #calculez functia densitate probabilitate din nou
 
-		'''if(self.no_dims==2):
-			#coturul cu albastru este plotat doar pentru 2 dimensiuni
-			f,xmin, xmax, ymin, ymax, xx, yy = self.evaluate_pdf_kde(X, each_dimension_values) #pentru afisare zone dense albastre
-			plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre'''
-			
-		
 		'''
 		Split the dataset in density levels
 		'''
