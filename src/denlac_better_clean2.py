@@ -485,24 +485,12 @@ class Denlac:
 		f.write('ARI:  '+str(evaluation_measures.adj_rand_index(evaluation_dict))+"\n")
 		f.close()
 
-	def calculateNoBins(self, n):
-		l = set()
-		l.add(round(math.log2(n)) + 1)
-		l.add(round(math.pow(n, 1/3.)))
-		l.add(round(math.sqrt(n)))
-		l.add(round(2*math.pow(n, 1/3.)))
-		l.add(round(2*math.pow(n, 2/5.)))
-		print('bins', l)
-		return max(2, min(l))
-
 	def fitPredict(self, X, y, each_dimension_values, clase_points):
 
 		partition_dict = collections.defaultdict(list)
 		
 		no_dims = len(X[0])
 
-		no_bins = self.calculateNoBins(len(X))
-		print("bins", no_bins)
 		self.pdf = self.computeKDE(X, each_dimension_values) #calculez functia densitate probabilitate utilizand kde
 
 		#detectie si eliminare outlieri
@@ -533,7 +521,7 @@ class Denlac:
 		Split the dataset in density levels
 		'''
 
-		points_per_bin, bins = np.histogram(self.pdf, bins=no_bins)
+		points_per_bin, bins = np.histogram(self.pdf, bins='scott')
 
 		#plot density levels bins and create density levels partitions
 		for idx_bin in range( (len(bins)-1) ):
