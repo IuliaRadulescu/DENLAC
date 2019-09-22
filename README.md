@@ -22,8 +22,8 @@ Run examples:
 * python src/denlac.py datasets/aggregation.txt 7 8 0.8 1 2
 * python src/denlac.py datasets/spiral.txt 3 3 1 3 2
 * python src/denlac.py datasets/r15.txt 15 3 0.5 1 2
-* python src/denlac.py datasets/jain.txt 2 3 1 2 2
-* python src/denlac.py datasets/pathbased.txt 3 2 0.73 2 2
+* python src/denlac.py datasets/jain.txt 2 3 1.5 2 2
+* python src/denlac.py datasets/pathbased.txt 3 3 0.5 2 2
 * python src/denlac.py datasets/flame.txt 2 2 1 3 2
 * python src/denlac.py datasets/compound.txt 6 3 1 3 2
 * python src/denlac.py datasets/d31.txt 31 7 0.1 1 2

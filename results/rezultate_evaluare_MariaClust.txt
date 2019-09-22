@@ -1,3 +1,9 @@
+python src/mariaClust.py datasets/pathbased.txt 3 3 0.5 2 2 #cu modificarea din 01.09.2019
+Purity:  1.0
+Entropy:  0.0
+RI:  1.0
+ARI:  1.0
+
 python src/mariaClust.py datasets/d31.txt 31 7 0.1 1
 Purity:  0.955939947780679
 Entropy: 0.05138670079995955
