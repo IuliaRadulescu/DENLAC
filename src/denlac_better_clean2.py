@@ -472,7 +472,8 @@ Denlac Algorithm
 if __name__ == "__main__":
 	
 	filename = sys.argv[1]
-	neighborNumber = int(sys.argv[2]) # nr of neighbors in the knn graph
+	no_clusters = int(sys.argv[2])
+	neighborNumber = int(sys.argv[3]) # nr of neighbors in the knn graph
 
 	#read from file
 
