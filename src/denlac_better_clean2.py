@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import scipy.stats as st
 from sklearn.neighbors.kde import KernelDensity
 from sklearn.cluster import estimate_bandwidth
+from sklearn.neighbors import kneighbors_graph
 
 import sys
 import os
@@ -13,6 +14,7 @@ from random import shuffle
 import math
 import collections
 import evaluation_measures
+import connected_components
 
 
 '''
@@ -22,10 +24,9 @@ FUNCTII AUXILIARE
 
 class Denlac:
 
-	def __init__(self, no_clusters, expand_factor):
+	def __init__(self, no_clusters, neighborNumber):
 		self.no_clusters = no_clusters 
-		self.expand_factor = expand_factor # expantion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
-
+		self.neighborNumber = neighborNumber # number of neighbors in knn graph
 		self.id_cluster = -1
 		self.points_partition = list()
 		self.pdf = list()
@@ -238,126 +239,6 @@ class Denlac:
 				outliers_iqr.append(idx)
 		return outliers_iqr
 
-	def getClosestMean(self, no_dims):
-		'''
-		The mean of k pairwise distances
-		'''
-
-		just_pdfs = [point[no_dims+1] for point in self.points_partition]
-		just_pdfs = list(set(just_pdfs))
-
-		mean_pdf = sum(just_pdfs)/len(just_pdfs)
-		k=int(math.ceil(0.1*len(self.points_partition)))
-		distances = list()
-
-		for point in self.points_partition:
-			deja_parsati = list()
-			if(point[no_dims+1] > mean_pdf):
-				while(k>0):
-					neigh_id = 0
-					minDist = 99999
-					for id_point_k in range(len(self.points_partition)):
-						point_k = self.points_partition[id_point_k]
-						if(point_k not in deja_parsati):
-							dist = self.distanceFunction(point, point_k, no_dims)
-							if(dist < minDist and dist > 0):
-								minDist = dist
-								neigh_id = id_point_k
-					distances.append(minDist)
-					neigh = self.points_partition[neigh_id]
-					deja_parsati.append(neigh)
-					k=k-1
-		distances = list(set(distances))
-
-		if(len(distances)==0):
-			k=int(math.ceil(0.1*len(self.points_partition)))
-			distances = list()
-			for point in self.points_partition:
-				deja_parsati = list()
-				while(k>0):
-					neigh_id = 0
-					minDist = 99999
-					for id_point_k in range(len(self.points_partition)):
-						point_k = self.points_partition[id_point_k]
-						if(point_k not in deja_parsati):
-							dist = self.distanceFunction(point, point_k, no_dims)
-							if(dist < minDist and dist > 0):
-								minDist = dist
-								neigh_id = id_point_k
-					distances.append(minDist)
-					neigh = self.points_partition[neigh_id]
-					deja_parsati.append(neigh)
-					k=k-1
-			distances = list(set(distances))
-
-
-		return sum(distances)/len(distances)
-
-
-	def getClosestKNeighbors(self, point, id_point, no_dims):
-		'''
-		Get a point's closest v neighbours
-		v is not a constant!! for each point you keep adding neighbours
-		untill the distance from the next neigbour and the point is larger than
-		expand_factor * closest_mean (closest_mean este calculata de functia anterioara)
-		'''
-		
-		neigh_ids = list()
-		distances = list()
-		deja_parsati = list()
-		pot_continua = 1
-		closest_mean = self.getClosestMean(no_dims)
-		while(pot_continua==1):
-			minDist = 99999
-			neigh_id = 0
-			for id_point_k in range(len(self.points_partition)):
-				point_k = self.points_partition[id_point_k]
-				if(point_k not in deja_parsati):
-					dist = self.distanceFunction(point, point_k, no_dims)
-					if(dist < minDist and dist > 0):
-						minDist = dist
-						neigh_id = id_point_k
-			
-
-			if(minDist <= expand_factor*closest_mean):
-				neigh = self.points_partition[neigh_id]
-				neigh_ids.append([neigh_id, neigh])
-				distances.append(minDist)
-				
-				deja_parsati.append(neigh)
-			else:
-				pot_continua = 0
-			
-		neigh_ids.sort(key=lambda x: x[1])
-
-		neigh_ids_final = [n_id[0] for n_id in neigh_ids]
-
-		return neigh_ids_final
-
-
-	def expandKNN(self, point_id, no_dims):
-		'''
-		Extend current cluster
-		Take the current point's nearest v neighbours 
-		Add them to the cluster
-		Take the v neighbours of the v neighbours and add them to the cluster
-		When you can't expand anymore start new cluster
-		'''
-
-		point = self.points_partition[point_id]
-		neigh_ids = self.getClosestKNeighbors(point, point_id, no_dims)
-		
-		if(len(neigh_ids)>0):
-			self.points_partition[point_id][no_dims] = self.id_cluster
-			self.points_partition[point_id][no_dims+2] = 1
-			for neigh_id in neigh_ids:
-				
-				if(self.points_partition[neigh_id][no_dims+2]==-1):
-					self.expandKNN(neigh_id, no_dims)
-		else:
-			self.points_partition[point_id][no_dims] = -1
-			self.points_partition[point_id][no_dims+2] = 1
-			
 
 	def calculateSmallestPairwise(self, cluster1, cluster2):
 
@@ -370,72 +251,44 @@ class Denlac:
 						min_pairwise = distBetween
 		return min_pairwise
 
+	def splitPartitionsConnectedComponents(self, partition_dict, no_dims):
 
-	def splitPartitions(self, partition_dict, no_dims):
+		finalPartitions = collections.defaultdict(list);
+		part_id = 0
 
-		print("Expand factor "+str(self.expand_factor))
 		noise = list()
-		no_clusters_partition = 1
-		part_id=0
-		finalPartitions = collections.defaultdict(list)
-
+		
+		#foreach partition, build the knn graph
 		for k in partition_dict:
-			self.points_partition = partition_dict[k]
+			points_partition = list()
+			for element_all_features in partition_dict[k]:
+				multi_dim_point = list()
+				for dim in range(no_dims):
+					multi_dim_point.append(element_all_features[dim])
+				points_partition.append(multi_dim_point)
+			print(points_partition)
 
-			self.id_cluster = -1
+			neigh_graph_matrix = kneighbors_graph(np.array(points_partition), self.neighborNumber, mode='connectivity', metric='euclidean', include_self=True)
+			neigh_graph_matrix = neigh_graph_matrix.toarray();
 
-			for point_id in range(len(self.points_partition)):
-				point = self.points_partition[point_id]
-				
-				if(self.points_partition[point_id][no_dims]==-1):
-					self.id_cluster = self.id_cluster + 1
-					no_clusters_partition = no_clusters_partition + 1
-					self.points_partition[point_id][no_dims+2] = 1
-					self.points_partition[point_id][no_dims] = self.id_cluster
-					neigh_ids = self.getClosestKNeighbors(point, point_id, no_dims)
-					
-					for neigh_id in neigh_ids:
-						if(self.points_partition[neigh_id][no_dims]==-1):
-							self.points_partition[neigh_id][no_dims+2]=1
-							self.points_partition[neigh_id][no_dims]=self.id_cluster
-							self.expandKNN(neigh_id, no_dims)
-						
-			inner_partitions = collections.defaultdict(list)
-			inner_partitions_filtered = collections.defaultdict(list)
-			part_id_inner = 0
+			neigh_graph = connected_components.Graph(len(neigh_graph_matrix))
 
-			for i in range(no_clusters_partition):
-				for point in self.points_partition:
-					if(point[no_dims]==i):
-						inner_partitions[part_id_inner].append(point)
-				part_id_inner = part_id_inner+1
-			#adaug si zgomotul
-			for point in self.points_partition:
-				if(point[no_dims]==-1):
-					inner_partitions[part_id_inner].append(point)
-					part_id_inner = part_id_inner+1
-					
+			for i in range(len(neigh_graph_matrix)):
+				for j in range(i+1, len(neigh_graph_matrix)):
+					if (neigh_graph_matrix[i][j] == 1):
+						neigh_graph.addEdge(i, j)
 
-			#filter partitions - le elimin pe cele care contin un singur punct
-			keys_to_delete = list()
-			for k in inner_partitions:
-				if(len(inner_partitions[k])<=1):
-					keys_to_delete.append(k)
-					#salvam aceste puncte si le reasignam la sfarsit celui mai apropiat cluster
-					if(len(inner_partitions[k])>0):
-						for pinner in inner_partitions[k]:
-							noise.append(pinner)
-			for k in keys_to_delete:
-				del inner_partitions[k]
+			#find connected components
+			con_comps = neigh_graph.connectedComponents()
 
-			part_id_filtered = 0
-			for part_id_k in inner_partitions:
-				inner_partitions_filtered[part_id_filtered] = inner_partitions[part_id_k]
-				part_id_filtered = part_id_filtered + 1
+			print('Connected components are ' + str(con_comps))
 
-
-			for part_id_inner in inner_partitions_filtered:
-				finalPartitions[part_id] = inner_partitions_filtered[part_id_inner]
+			for con_comp in con_comps:
+				if (len(con_comp) == 1):
+					noise.append(points_partition[point_id])
+					continue
+				for point_id in con_comp:
+					finalPartitions[part_id].append(points_partition[point_id])
 				part_id = part_id + 1
 
 		return (finalPartitions, noise)
@@ -550,7 +403,7 @@ class Denlac:
 		Density levels distance split
 		'''
 		
-		finalPartitions, noise = self.splitPartitions(partition_dict, no_dims) #functie care scindeaza partitiile
+		finalPartitions, noise = self.splitPartitionsConnectedComponents(partition_dict, no_dims) #functie care scindeaza partitiile
 		
 		if(no_dims==2):
 			for k in finalPartitions:
@@ -619,7 +472,7 @@ Denlac Algorithm
 if __name__ == "__main__":
 	
 	filename = sys.argv[1]
-	expand_factor = float(sys.argv[2]) # expantion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
+	neighborNumber = int(sys.argv[2]) # nr of neighbors in the knn graph
 
 	#read from file
 
@@ -647,7 +500,7 @@ if __name__ == "__main__":
 	
 	no_clusters = len(set(y))
 	
-	denlacInstance = Denlac(no_clusters, expand_factor)
+	denlacInstance = Denlac(no_clusters, neighborNumber)
 	cluster_points = denlacInstance.fitPredict(X, y, each_dimension_values, clase_points)
 	'''set_de_date = filename.split("/")[1].split(".")[0].title()
 	color_list = denlacInstance.return_generated_colors()'''

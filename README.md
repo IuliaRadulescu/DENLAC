@@ -1,11 +1,8 @@
 # denlac
 
-### Run parameters for improved version:
-* filename of the dataset
+### Run parameters for improved version (denlac_better2):
 * no_clusters
-* no_bins
-* expand_factor - given a center, how much a cluster can expand based on the number of neighbours
-* no_dimensions
+* no_neigbors - the number of nearest neighbors in the k-nearest-neigbors graph
 
 ### Run parameters:
 * filename of the dataset
