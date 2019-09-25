@@ -251,6 +251,51 @@ class Denlac:
 						min_pairwise = distBetween
 		return min_pairwise
 
+	def generateNeighGraph(self, points, no_dims):
+
+		partitionPointDict = {}
+		partitionPointDictFinal = {}
+		part_id = 0
+		distances = list()
+
+		for point_id_x in range(len(points)-1):
+			for point_id_y in range(point_id_x+1, len(points)):
+				point_x = points[point_id_x]
+				point_y = points[point_id_y]
+				dist = self.distanceFunction(point_x, point_y, no_dims)
+				distances.append(dist)
+				partitionPointDict[part_id] = (dist, point_id_x, point_id_y)
+				part_id = part_id + 1
+
+		mean = np.mean(np.array(distances))
+		std = np.std(np.array(distances))
+
+		distances.sort()
+
+		# cate distante conteaza? procentul e altul in functie de setul de date
+		# cu cat mean - std este mai mica, cu atat setul e mai disparat, cu atat trebuie sa iau mai putine distante
+		if (math.ceil(mean) - math.ceil(std) < 1):
+			k = math.ceil(0.047 * len(distances))
+		else:
+			k = math.ceil(0.1 * len(distances))
+		kNearestDistances = distances[0:k]
+
+		maxDist = np.mean(np.array(kNearestDistances))
+
+		part_id = 0
+		for k in partitionPointDict:
+			if (partitionPointDict[k][0] < maxDist):
+				partitionPointDictFinal[part_id] = (partitionPointDict[k][1], partitionPointDict[k][2])
+				part_id = part_id + 1
+
+		neigh_graph = connected_components.Graph(len(points)) 
+
+		for k in partitionPointDictFinal:
+			neigh_graph.addEdge(partitionPointDictFinal[k][0], partitionPointDictFinal[k][1])
+
+		return neigh_graph
+
+
 	def splitPartitionsConnectedComponents(self, partition_dict, no_dims):
 
 		finalPartitions = collections.defaultdict(list);
@@ -266,17 +311,9 @@ class Denlac:
 				for dim in range(no_dims):
 					multi_dim_point.append(element_all_features[dim])
 				points_partition.append(multi_dim_point)
-			print(points_partition)
+			print("partitia initiala contine "+str(len(points_partition)))
 
-			neigh_graph_matrix = kneighbors_graph(np.array(points_partition), self.neighborNumber, mode='connectivity', metric='euclidean', include_self=True)
-			neigh_graph_matrix = neigh_graph_matrix.toarray();
-
-			neigh_graph = connected_components.Graph(len(neigh_graph_matrix))
-
-			for i in range(len(neigh_graph_matrix)):
-				for j in range(i+1, len(neigh_graph_matrix)):
-					if (neigh_graph_matrix[i][j] == 1):
-						neigh_graph.addEdge(i, j)
+			neigh_graph = self.generateNeighGraph(points_partition, no_dims)
 
 			#find connected components
 			con_comps = neigh_graph.connectedComponents()
@@ -285,6 +322,7 @@ class Denlac:
 
 			for con_comp in con_comps:
 				if (len(con_comp) == 1):
+					point_id = con_comp[0]
 					noise.append(points_partition[point_id])
 					continue
 				for point_id in con_comp:
@@ -374,7 +412,7 @@ class Denlac:
 		Split the dataset in density levels
 		'''
 
-		points_per_bin, bins = np.histogram(self.pdf, bins='scott')
+		points_per_bin, bins = np.histogram(self.pdf, bins='doane')
 
 		#plot density levels bins and create density levels partitions
 		for idx_bin in range( (len(bins)-1) ):
