@@ -184,11 +184,6 @@ class Denlac:
 			'''
 			compute pdf and its values for points in dataset X
 			'''
-			stacking_list = list()
-			for dim_id in each_dimension_values:
-				stacking_list.append(each_dimension_values[dim_id])
-			values = np.vstack(stacking_list)
-			kernel = st.gaussian_kde(values) 
 			pdf = kernel.evaluate(values)
 		else:
 			#0, use sklearn
@@ -273,17 +268,33 @@ class Denlac:
 
 		for point_id_x in range(len(points)):
 			point_x = points[point_id_x]
-			point_id_y = pointsKDtree.query([point_x], k=3)[1][0][2]
-			point_y = points[point_id_y]
-			print("x "+str(point_x)+"y "+str(point_y))
-			dist = self.distanceFunction(point_x, point_y, no_dims)
-			print("dist este "+str(dist))
-			distances.append(dist)
-			partitionPointDict[part_id] = (dist, point_id_x, point_id_y)
-			part_id = part_id + 1
-				
 
-		maxDistAdd = max(distances)
+			maxNumberOfNeighs = len(points) - 1
+			neigh_ids = pointsKDtree.query([point_x], k=maxNumberOfNeighs)[1][0]
+			distances_for_a_point = list()
+			distances_neighs_map = list()
+			for neigh_id in neigh_ids:
+				point_y = points[neigh_id]
+				dist = self.distanceFunction(point_x, point_y, no_dims)
+				# is dist too big (2 standard deviations away?)
+				# if it is, break this, we're going too far away
+				if (len(distances_for_a_point) >= 2):
+					std = np.std(np.array(distances_for_a_point))
+					mean = np.mean(np.array(distances_for_a_point))
+					if (dist >= 2*std + mean):
+						#print("dist PREA MARE este "+str(dist))
+						break;
+				#print("dist este "+str(dist))
+				distances_for_a_point.append(dist)
+				distances_neighs_map.append([dist, neigh_id])
+
+
+			for dist_element in distances_neighs_map:
+				partitionPointDict[part_id] = (dist_element[0], point_id_x, dist_element[1])
+				distances.append(dist_element[0])
+				part_id = part_id + 1
+				
+		maxDistAdd = np.mean(np.array(distances))
 
 		print('diff mean ' + str(np.mean(np.array(distances))))
 		print('diff stdev ' + str(np.std(np.array(distances))))
