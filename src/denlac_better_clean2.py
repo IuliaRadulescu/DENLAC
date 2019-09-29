@@ -4,14 +4,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
 from sklearn.neighbors.kde import KernelDensity
+from sklearn.neighbors import KDTree
 from sklearn.cluster import estimate_bandwidth
 from sklearn.neighbors import kneighbors_graph
+from scipy.optimize import curve_fit
+from sklearn.cluster import KMeans
 
 import sys
 import os
 from random import randint
 from random import shuffle
 import math
+import statistics
 import collections
 import evaluation_measures
 import connected_components
@@ -24,9 +28,9 @@ FUNCTII AUXILIARE
 
 class Denlac:
 
-	def __init__(self, no_clusters, neighborNumber):
+	def __init__(self, no_clusters, bandwidth):
 		self.no_clusters = no_clusters 
-		self.neighborNumber = neighborNumber # number of neighbors in knn graph
+		self.bandwidth = bandwidth # number of neighbors in knn graph
 		self.id_cluster = -1
 		self.points_partition = list()
 		self.pdf = list()
@@ -63,7 +67,7 @@ class Denlac:
 			
 		return newDict
 
-	def computeDistanceIndices(self, partitions):
+	def computeDistanceIndices(self, partitions, no_dims):
 	
 		distances = []
 
@@ -72,7 +76,7 @@ class Denlac:
 				if (i==j):
 					distBetweenPartitions = -1
 				else:
-					distBetweenPartitions = self.calculateSmallestPairwise(partitions[i], partitions[j])
+					distBetweenPartitions = self.calculateSmallestPairwise(partitions[i], partitions[j], no_dims)
 				distances.append(distBetweenPartitions)
 
 		distances = np.array(distances)
@@ -120,7 +124,7 @@ class Denlac:
 
 		numberOfPartitions = len(partitions)
 
-		distancesIndices = self.computeDistanceIndices(partitions)
+		distancesIndices = self.computeDistanceIndices(partitions, no_dims)
 
 		while numberOfPartitions > finalNoClusters:
 			
@@ -159,7 +163,7 @@ class Denlac:
 				plt.show()
 
 			numberOfPartitions = len(partitions)
-			distancesIndices = self.computeDistanceIndices(partitions)
+			distancesIndices = self.computeDistanceIndices(partitions, no_dims)
 
 		return partitions
 	
@@ -169,7 +173,10 @@ class Denlac:
 		for dim_id in each_dimension_values:
 			stacking_list.append(each_dimension_values[dim_id])
 		values = np.vstack(stacking_list)
-		kernel = st.gaussian_kde(values)
+		if (self.bandwidth != -1):
+			kernel = st.gaussian_kde(values, self.bandwidth)
+		else:
+			kernel = st.gaussian_kde(values)
 		print("norm_factor = "+str(kernel._norm_factor))
 		pdf = []
 		if(kernel._norm_factor!=0):
@@ -185,7 +192,10 @@ class Denlac:
 			pdf = kernel.evaluate(values)
 		else:
 			#0, use sklearn
-			bw_sklearn = estimate_bandwidth(X)
+			if (self.bandwidth != -1):
+				bw_sklearn = self.bandwidth
+			else:
+				bw_sklearn = estimate_bandwidth(X)
 			print("bw_sklearn este "+str(bw_sklearn))
 			kde = KernelDensity(kernel='gaussian', bandwidth=bw_sklearn).fit(X)
 			log_pdf = kde.score_samples(X)
@@ -240,7 +250,7 @@ class Denlac:
 		return outliers_iqr
 
 
-	def calculateSmallestPairwise(self, cluster1, cluster2):
+	def calculateSmallestPairwise(self, cluster1, cluster2, no_dims):
 
 		min_pairwise = 999999
 		for point1 in cluster1:
@@ -257,36 +267,48 @@ class Denlac:
 		partitionPointDictFinal = {}
 		part_id = 0
 		distances = list()
+		distancesToTakeIntoAccount = list()
 
-		for point_id_x in range(len(points)-1):
-			for point_id_y in range(point_id_x+1, len(points)):
-				point_x = points[point_id_x]
-				point_y = points[point_id_y]
-				dist = self.distanceFunction(point_x, point_y, no_dims)
-				distances.append(dist)
-				partitionPointDict[part_id] = (dist, point_id_x, point_id_y)
-				part_id = part_id + 1
+		pointsKDtree = KDTree(points)
 
-		mean = np.mean(np.array(distances))
-		std = np.std(np.array(distances))
+		for point_id_x in range(len(points)):
+			point_x = points[point_id_x]
+			point_id_y = pointsKDtree.query([point_x], k=3)[1][0][2]
+			point_y = points[point_id_y]
+			print("x "+str(point_x)+"y "+str(point_y))
+			dist = self.distanceFunction(point_x, point_y, no_dims)
+			print("dist este "+str(dist))
+			distances.append(dist)
+			partitionPointDict[part_id] = (dist, point_id_x, point_id_y)
+			part_id = part_id + 1
+				
 
-		distances.sort()
+		maxDistAdd = max(distances)
 
-		# cate distante conteaza? procentul e altul in functie de setul de date
-		# cu cat mean - std este mai mica, cu atat setul e mai disparat, cu atat trebuie sa iau mai putine distante
-		if (math.ceil(mean) - math.ceil(std) < 1):
-			k = math.ceil(0.047 * len(distances))
-		else:
-			k = math.ceil(0.1 * len(distances))
-		kNearestDistances = distances[0:k]
+		print('diff mean ' + str(np.mean(np.array(distances))))
+		print('diff stdev ' + str(np.std(np.array(distances))))
+		# print('the knee is ' + str(ellbow_index))
+		print('the distance is '+str(maxDistAdd))
 
-		maxDist = np.mean(np.array(kNearestDistances))
+		# plt.plot(distances)
+		# plt.show()
+
+		# rotor.plot_elbow()
+		# plt.show()
+
+		# if maxdist is not at least 1 sted away from the mean, it means it's waaay to big
+		# this means the dataset there it's to disparate and it's probably noise
+
+		# kDistances = [dist for dist in distances if dist < maxDist]
+		# maxDistAdd = np.mean(np.array(kDistances))
+		# print('maxDist to add '+str(maxDistAdd))
 
 		part_id = 0
 		for k in partitionPointDict:
-			if (partitionPointDict[k][0] < maxDist):
+			if (partitionPointDict[k][0] <= maxDistAdd):
 				partitionPointDictFinal[part_id] = (partitionPointDict[k][1], partitionPointDict[k][2])
 				part_id = part_id + 1
+
 
 		neigh_graph = connected_components.Graph(len(points)) 
 
@@ -314,6 +336,11 @@ class Denlac:
 			print("partitia initiala contine "+str(len(points_partition)))
 
 			neigh_graph = self.generateNeighGraph(points_partition, no_dims)
+
+			if (neigh_graph == -1):
+				for point in points_partition:
+					noise.append(point)
+				continue
 
 			#find connected components
 			con_comps = neigh_graph.connectedComponents()
@@ -366,8 +393,8 @@ class Denlac:
 
 		print('Purity:  ', evaluation_measures.purity(evaluation_dict))
 		print('Entropy: ', evaluation_measures.entropy(evaluation_dict)) # perfect results have entropy == 0
-		print('RI       ', evaluation_measures.rand_index(evaluation_dict))
-		print('ARI      ', evaluation_measures.adj_rand_index(evaluation_dict))
+		print('RI	   ', evaluation_measures.rand_index(evaluation_dict))
+		print('ARI	  ', evaluation_measures.adj_rand_index(evaluation_dict))
 
 		f = open("rezultate_evaluare.txt", "a")
 		f.write('Purity:  '+str(evaluation_measures.purity(evaluation_dict))+"\n")
@@ -412,7 +439,7 @@ class Denlac:
 		Split the dataset in density levels
 		'''
 
-		points_per_bin, bins = np.histogram(self.pdf, bins='doane')
+		points_per_bin, bins = np.histogram(self.pdf, bins='fd')
 
 		#plot density levels bins and create density levels partitions
 		for idx_bin in range( (len(bins)-1) ):
@@ -442,7 +469,7 @@ class Denlac:
 		'''
 		
 		finalPartitions, noise = self.splitPartitionsConnectedComponents(partition_dict, no_dims) #functie care scindeaza partitiile
-		
+
 		if(no_dims==2):
 			for k in finalPartitions:
 				color = self.randomColorScaled()
@@ -458,9 +485,24 @@ class Denlac:
 
 		intermediary_centroids = []
 
-		for joinedPartitionIndex in joinedPartitions:
-			intermediary_centroids.append(self.centroid(joinedPartitions[joinedPartitionIndex], no_dims))
+		noise_to_partition = collections.defaultdict(list)
+		#reassign the noise to the class that contains the nearest neighbor
+		for noise_point in noise:
+			#determine which is the closest cluster to noise_point
+			closest_partition_idx = 0
+			minDist = 99999
+			for k in joinedPartitions:
+				print (noise_point)
+				print (joinedPartitions[k])
+				dist = self.calculateSmallestPairwise([noise_point], joinedPartitions[k], no_dims)
+				if (dist < minDist):
+					closest_partition_idx = k
+					minDist = dist
+			noise_to_partition[closest_partition_idx].append(noise_point)
 
+		for joinedPartId in noise_to_partition:
+			for noise_point in noise_to_partition[joinedPartId]:
+				joinedPartitions[joinedPartId].append(noise_point)
 
 		self.evaluateCluster(clase_points, joinedPartitions, no_dims)
 		print("Evaluation")
@@ -511,7 +553,10 @@ if __name__ == "__main__":
 	
 	filename = sys.argv[1]
 	no_clusters = int(sys.argv[2])
-	neighborNumber = int(sys.argv[3]) # nr of neighbors in the knn graph
+	if (sys.argv[3:]):
+		bandwidth = int(sys.argv[3]) # nr of neighbors in the knn graph
+	else:
+		bandwidth = -1
 
 	#read from file
 
@@ -539,7 +584,7 @@ if __name__ == "__main__":
 	
 	no_clusters = len(set(y))
 	
-	denlacInstance = Denlac(no_clusters, neighborNumber)
+	denlacInstance = Denlac(no_clusters, bandwidth)
 	cluster_points = denlacInstance.fitPredict(X, y, each_dimension_values, clase_points)
 	'''set_de_date = filename.split("/")[1].split(".")[0].title()
 	color_list = denlacInstance.return_generated_colors()'''
