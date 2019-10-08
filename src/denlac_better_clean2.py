@@ -3,6 +3,7 @@ from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
+from scipy.signal import argrelextrema
 from sklearn.neighbors.kde import KernelDensity
 from sklearn.neighbors import KDTree
 from sklearn.cluster import estimate_bandwidth
@@ -28,12 +29,13 @@ FUNCTII AUXILIARE
 
 class Denlac:
 
-	def __init__(self, no_clusters, bandwidth):
+	def __init__(self, no_clusters, bandwidth, debugMode):
 		self.no_clusters = no_clusters 
 		self.bandwidth = bandwidth # number of neighbors in knn graph
 		self.id_cluster = -1
 		self.points_partition = list()
 		self.pdf = list()
+		self.debugMode = debugMode
 
 	def upsertToJoinedPartitions(self, keys, partitionToAdd, joinedPartitions):
 
@@ -153,7 +155,7 @@ class Denlac:
 			mergedIndexes = set(mergedIndexes)
 			partitions = self.rebuildDictIndexes(partitions, joinedPartitions, mergedIndexes)
 
-			if(no_dims==2):
+			if(no_dims==2 and self.debugMode != -1):
 				#plt.contourf(xx, yy, f, cmap='Blues')
 				#final plot
 				for k in partitions:
@@ -272,6 +274,22 @@ class Denlac:
 						min_pairwise = distBetween
 		return min_pairwise
 
+	def num_zeros_after_point(self, x):
+		s = str(x)
+		if not '.' in s:
+			return 0
+
+		number_after_point = str(x-int(x))[2:]
+
+		count_zeros = 0
+		for i in range(len(number_after_point)):
+			if (number_after_point[i] == '0'):
+				count_zeros = count_zeros + 1
+			else:
+				break;
+		return count_zeros
+
+
 	def checkForFracture(self, point1, point2, no_dims, kernel, pdfMean, pdfStd):
 
 		# stacking_list = []
@@ -292,7 +310,19 @@ class Denlac:
 		log_pdf_partition = kernel.score_samples([pointMiddle])
 		pdfMid = np.exp(log_pdf_partition)
 
-		if (pdfMid >= pdfMean - 2*pdfStd):
+		# the lower the mean, the more i have to filter
+		# get the mean decimal places - just to normalize stuff a bit
+		pdfMeanDec = self.num_zeros_after_point(pdfMean)
+
+		# make pdf mean belong to the interval [0.1, 0.9] - just one decimal point
+		pdfMeanNormalized = pdfMean * pow(10, pdfMeanDec)
+
+		# and now log it to get the factor
+		logMeanNormalized = math.ceil(abs(math.log2(pdfMeanNormalized)))
+
+		#print('logMeanNormalized ' + str(logMeanNormalized))
+
+		if (pdfMid >= pdfMean - logMeanNormalized*pdfStd):
 			self.checkForFracture(point1, pointMiddle, no_dims, kernel, pdfMean, pdfStd)
 			self.checkForFracture(pointMiddle, point2, no_dims, kernel, pdfMean, pdfStd)
 			return self.hasFracture
@@ -328,6 +358,29 @@ class Denlac:
 		f = np.reshape(pdf.T, xx.shape)
 		return (f,xmin, xmax, ymin, ymax, xx, yy)
 
+	def printPartitionShapeEvaluation(self, points, neigh_ids, point, id_point, no_dims, kernel, pdfPartition):
+
+		each_dimension_values_partition = dict()
+
+		for dim in range(no_dims):
+			each_dimension_values_partition[dim] = [self.points_partition[q][dim] for q in range(len(self.points_partition))]
+
+		#coturul cu albastru este plotat doar pentru 2 dimensiuni
+		f,xmin, xmax, ymin, ymax, xx, yy = self.evaluate_pdf_kde_sklearn(points, each_dimension_values_partition) #pentru afisare zone dense albastre
+		plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre'
+
+		for point_id in range(len(self.points_partition)):
+			point = self.points_partition[point_id]
+			if (point_id == id_point):
+				plt.scatter(point[0], point[1], color='blue')
+			elif (point_id in neigh_ids):
+				plt.scatter(point[0], point[1], color='red')
+			else:
+				plt.scatter(point[0], point[1], color='green')
+
+		plt.show()
+
+
 	def getClosestKNeighborsNew(self, point, id_point, no_dims, kernel, pdfPartition):
 
 		# print("================================")
@@ -355,39 +408,12 @@ class Denlac:
 			neighPoint = points[neigh_id]
 			self.hasFracture = False
 			self.hasFracture = self.checkForFracture(refPoint, neighPoint, no_dims, kernel, pdfMean, pdfStd)
-			#pdfMean = np.mean(np.array([pdfPartition[id_point], pdfPartition[neigh_id]]))
-			# print("pdfAtMiddle " + str(pdfAtMiddle))
-			# print("pdfMean " + str(pdfMean))
 
 			if (self.hasFracture == False):
 				neigh_ids.append(neigh_id)
 
-		#print ("punctul " + str(refPoint) + " are " + str(len(neigh_ids)) + " vecini")
-
-		# if(no_dims==2):
-
-		# 	each_dimension_values_partition = dict()
-
-		# 	for dim in range(no_dims):
-		# 		each_dimension_values_partition[dim] = [self.points_partition[q][dim] for q in range(len(self.points_partition))]
-
-		# 	#coturul cu albastru este plotat doar pentru 2 dimensiuni
-		# 	f,xmin, xmax, ymin, ymax, xx, yy = self.evaluate_pdf_kde_sklearn(points, each_dimension_values_partition) #pentru afisare zone dense albastre
-		# 	plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre'
-
-		# 	for point_id in range(len(self.points_partition)):
-		# 		point = self.points_partition[point_id]
-		# 		if (point_id == id_point):
-		# 			plt.scatter(point[0], point[1], color='blue')
-		# 		elif (point_id in neigh_ids):
-		# 			plt.scatter(point[0], point[1], color='red')
-		# 		else:
-		# 			plt.scatter(point[0], point[1], color='green')
-
-		# 	# for pointMiddle in middlePoints:
-		# 	# 	plt.scatter(pointMiddle[0], pointMiddle[1], color='orange')
-
-		# 	plt.show()
+		# if(no_dims==2 and self.debugMode != -1):
+		# 	self.printPartitionShapeEvaluation(points, neigh_ids, point, id_point, no_dims, kernel, pdfPartition)
 
 		return neigh_ids
 
@@ -608,7 +634,7 @@ class Denlac:
 		
 		finalPartitions, noise = self.splitPartitionsNew(partition_dict, no_dims) #functie care scindeaza partitiile
 
-		if(no_dims==2):
+		if(no_dims==2 and self.debugMode != -1):
 			for k in finalPartitions:
 				color = self.randomColorScaled()
 				for point in finalPartitions[k]:
@@ -616,9 +642,7 @@ class Denlac:
 
 			plt.show()
 
-
 		joinedPartitions = collections.defaultdict(list)
-
 		joinedPartitions = self.joinPartitions(finalPartitions, self.no_clusters, no_dims)
 
 		intermediary_centroids = []
@@ -646,7 +670,7 @@ class Denlac:
 		print("Evaluation")
 		print("==============================")
 		
-		if(no_dims==2):
+		if(no_dims==2 and self.debugMode != -1):
 			#plt.contourf(xx, yy, f, cmap='Blues')
 			#final plot
 			for k in joinedPartitions:
@@ -696,6 +720,11 @@ if __name__ == "__main__":
 	else:
 		bandwidth = -1
 
+	if (sys.argv[4:]):
+		debugMode = int(sys.argv[4]) # nr of neighbors in the knn graph
+	else:
+		debugMode = -1
+
 	#read from file
 
 	each_dimension_values = collections.defaultdict(list)
@@ -722,7 +751,7 @@ if __name__ == "__main__":
 	
 	no_clusters = len(set(y))
 	
-	denlacInstance = Denlac(no_clusters, bandwidth)
+	denlacInstance = Denlac(no_clusters, bandwidth, debugMode)
 	cluster_points = denlacInstance.fitPredict(X, y, each_dimension_values, clase_points)
 	'''set_de_date = filename.split("/")[1].split(".")[0].title()
 	color_list = denlacInstance.return_generated_colors()'''
