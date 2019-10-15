@@ -200,10 +200,13 @@ class Denlac:
         # @TODO IMPORTANT: also return pdf method - scipy or sklearn, it's very important
         return (pdf, kernel)
 
-    def computeKDESklearn(self, X, each_dimension_values):
+    def computeKDESklearn(self, X, bandwidth):
 
-        if (self.bandwidth != -1):
-            bw_sklearn = self.bandwidth
+        if (bandwidth != -1 and bandwidth != -2):
+            bw_sklearn = bandwidth
+        elif (bandwidth == -2):
+            bw_sklearn = estimate_bandwidth(X)
+            bw_sklearn = max(0.1, 0.25 * bw_sklearn)
         else:
             bw_sklearn = estimate_bandwidth(X)
         print("bw_sklearn este " + str(bw_sklearn))
@@ -211,8 +214,7 @@ class Denlac:
         log_pdf = kde.score_samples(X)
         pdf = np.exp(log_pdf)
 
-        # @TODO IMPORTANT: also return pdf method - scipy or sklearn, it's very important
-        return (pdf, kde)
+        return pdf, kde, bw_sklearn
 
     def randomColorScaled(self):
         b = randint(0, 255)
@@ -391,9 +393,6 @@ class Denlac:
         nearest_distances, nearest_indices = nnTree.query([refPoint], k=len(points))
 
         nearest_indices = nearest_indices[0]
-        nearest_distances = nearest_distances[0]
-
-        middlePoints = list()
 
         for idx in range(1, len(nearest_indices)):
             neigh_id = nearest_indices[idx]
@@ -432,7 +431,7 @@ class Denlac:
             self.points_partition[point_id][no_dims] = -1
             self.points_partition[point_id][no_dims + 2] = 1
 
-    def doSplit(self, no_dims, kernelParitition, pdfPartition):
+    def doSplit(self, no_dims, kernelPartition, pdfPartition):
 
         for point_id in range(len(self.points_partition)):
             point = self.points_partition[point_id]
@@ -442,13 +441,13 @@ class Denlac:
                 self.no_clusters_partition = self.no_clusters_partition + 1
                 self.points_partition[point_id][no_dims + 2] = 1
                 self.points_partition[point_id][no_dims] = self.id_cluster
-                neigh_ids = self.getClosestKNeighborsNew(point, point_id, no_dims, kernelParitition, pdfPartition)
+                neigh_ids = self.getClosestKNeighborsNew(point, point_id, no_dims, kernelPartition, pdfPartition)
 
                 for neigh_id in neigh_ids:
                     if (self.points_partition[neigh_id][no_dims] == -1):
                         self.points_partition[neigh_id][no_dims + 2] = 1
                         self.points_partition[neigh_id][no_dims] = self.id_cluster
-                        self.expandKNN(neigh_id, no_dims, kernelParitition, pdfPartition)
+                        self.expandKNN(neigh_id, no_dims, kernelPartition, pdfPartition)
 
     def buildPartitionsAfterSplit(self, no_dims):
 
@@ -485,7 +484,9 @@ class Denlac:
             inner_partitions_filtered[part_id_filtered] = inner_partitions[part_id_k]
             part_id_filtered = part_id_filtered + 1
 
-        return (inner_partitions_filtered, noise)
+        return inner_partitions_filtered, noise
+
+
 
     def splitPartitionsNew(self, partition_dict, no_dims):
 
@@ -494,8 +495,8 @@ class Denlac:
         part_id = 0
         finalPartitions = collections.defaultdict(list)
         pdfsPartitions = {}
-        pdfsPartitionsList = []
-        lowPdfsPartitionsList = []
+        variancePartitionsList = []
+        highBwPartitionsList = []
 
         print('number of final partitions ' + str(len(partition_dict)))
 
@@ -505,44 +506,62 @@ class Denlac:
 
             justPoints = [p[len(p) - 1] for p in self.points_partition]
 
-            self.bw_sklearn_partition = estimate_bandwidth(np.array(justPoints))
-            self.bw_sklearn_partition = 0.25 * self.bw_sklearn_partition
-            print("bw_sklearn_partition este " + str(self.bw_sklearn_partition))
-            kernelParitition = KernelDensity(kernel='gaussian', bandwidth=self.bw_sklearn_partition).fit(
-                np.array(justPoints))
-            log_pdf_partition = kernelParitition.score_samples(justPoints)
-            pdfPartition = np.exp(log_pdf_partition)
+            (pdfPartition, kernelPartition, bw_sklearn) = self.computeKDESklearn(np.array(justPoints), -2)
 
-            meanOfDensitiesPerPartition = np.mean(np.array(pdfPartition))
+            variancePartition = np.var(np.array(justPoints))
+            variancePartitionsList.append(variancePartition)
 
-            pdfsPartitions[k] = [pdfPartition, kernelParitition, meanOfDensitiesPerPartition]
-            pdfsPartitionsList.append(meanOfDensitiesPerPartition)
+            pdfsPartitions[k] = (pdfPartition, kernelPartition, variancePartition)
 
-        pdfsPartitionsMean = np.mean(np.array(pdfsPartitionsList))
-        pdfsPartitionsStd = np.std(np.array(pdfsPartitionsList))
+        variancePartitionsMean = np.mean(np.array(variancePartitionsList))
+        variancePartitionsStd = np.std(np.array(variancePartitionsList))
 
         for k in pdfsPartitions:
-            densityMeanPartition = pdfsPartitions[k][2]
-            if (densityMeanPartition <= pdfsPartitionsMean - 2 * pdfsPartitionsStd):
-                lowPdfsPartitionsList.append(k)
+            variancePartition = pdfsPartitions[k][2]
+            if (variancePartition >= variancePartitionsMean + 0.75 * variancePartitionsStd):
+                highBwPartitionsList.append(k)
+
+        print('lowPdfs ' + str(highBwPartitionsList))
 
         for k in partition_dict:
             self.points_partition = partition_dict[k]
-            inner_partitions_filtered = collections.defaultdict(list)
             self.id_cluster = -1
             pdfPartition = pdfsPartitions[k][0]
-            kernelParitition = pdfsPartitions[k][1]
-            self.doSplit(no_dims, kernelParitition, pdfPartition)
+            kernelPartition = pdfsPartitions[k][1]
+            self.doSplit(no_dims, kernelPartition, pdfPartition)
 
             (inner_partitions_filtered, noiseAfterSplit) = self.buildPartitionsAfterSplit(no_dims)
-
             noise = noise + noiseAfterSplit
+
+            # if density is low, split again
+            if (k in highBwPartitionsList):
+                inner_partitions_dict = inner_partitions_filtered
+                inner_partitions_filtered = collections.defaultdict(list)
+                part_id_filtered_final = 0
+
+                #reset already parsed points and cluster ids
+                for part_id_filtered in inner_partitions_dict:
+                    for point_inner_partition in inner_partitions_dict[part_id_filtered]:
+                        point_inner_partition[no_dims] = -1
+                        point_inner_partition[no_dims + 2] = -1
+
+                for part_id_filtered in inner_partitions_dict:
+                    self.id_cluster = -1
+                    self.points_partition = inner_partitions_dict[part_id_filtered]
+                    justPoints = [p[len(p) - 1] for p in self.points_partition]
+                    (pdfPartition, kernelPartition, _) = self.computeKDESklearn(np.array(justPoints), -2);
+                    self.doSplit(no_dims, kernelPartition, pdfPartition)
+                    (inner_partitions_filtered_intermediary, noiseAfterSplit) = self.buildPartitionsAfterSplit(no_dims)
+                    for l in inner_partitions_filtered_intermediary:
+                        inner_partitions_filtered[part_id_filtered_final] = inner_partitions_filtered_intermediary[l]
+                        part_id_filtered_final = part_id_filtered_final + 1
+                    noise = noise + noiseAfterSplit
 
             for part_id_inner in inner_partitions_filtered:
                 finalPartitions[part_id] = inner_partitions_filtered[part_id_inner]
                 part_id = part_id + 1
 
-        return (finalPartitions, noise)
+        return finalPartitions, noise
 
     def evaluateCluster(self, clase_points, cluster_points, no_dims):
 
@@ -593,8 +612,7 @@ class Denlac:
 
         no_dims = len(X[0])
 
-        (self.pdf, kernel) = self.computeKDESklearn(X,
-                                                    each_dimension_values)  # calculez functia densitate probabilitate utilizand kde
+        (self.pdf, kernel, _) = self.computeKDESklearn(X, self.bandwidth)  # calculez functia densitate probabilitate utilizand kde
 
         # detectie si eliminare outlieri
 
@@ -782,12 +800,12 @@ if __name__ == "__main__":
         smoothness = 1
 
     if (sys.argv[4:]):
-        bandwidth = int(sys.argv[4])  # nr of neighbors in the knn graph
+        bandwidth = int(sys.argv[4])  # bandwith
     else:
         bandwidth = -1
 
     if (sys.argv[5:]):
-        debugMode = int(sys.argv[5])  # nr of neighbors in the knn graph
+        debugMode = int(sys.argv[5])  # debug stuff - plot graphs for 2d
     else:
         debugMode = -1
 
