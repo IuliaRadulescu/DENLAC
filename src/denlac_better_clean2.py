@@ -327,7 +327,7 @@ class Denlac:
             self.hasFracture = True
             return True
 
-    def evaluate_pdf_kde_sklearn(self, dataset_xy, each_dimension_values):
+    def evaluate_pdf_kde_sklearn(self, dataset_xy, each_dimension_values, bandwidth):
         # pdf sklearn
         x = list()
         y = list()
@@ -348,7 +348,7 @@ class Denlac:
         dataset_xxyy = list()
         for q in range(len(xx_ravel)):
             dataset_xxyy.append([xx_ravel[q], yy_ravel[q]])
-        kde = KernelDensity(kernel='gaussian', bandwidth=self.bw_sklearn_partition).fit(dataset_xy)
+        kde = KernelDensity(kernel='gaussian', bandwidth=bandwidth).fit(dataset_xy)
         log_pdf = kde.score_samples(dataset_xxyy)
         pdf = np.exp(log_pdf)
         f = np.reshape(pdf.T, xx.shape)
@@ -486,7 +486,36 @@ class Denlac:
 
         return inner_partitions_filtered, noise
 
-
+    # def removeClutter(self, no_dims, partition_dict):
+    #
+    #     distancesBetweenPoints = list()
+    #
+    #     for k in partition_dict:
+    #
+    #         justPoints = [p[len(p) - 1] for p in partition_dict[k]]
+    #
+    #         for point1 in justPoints:
+    #             for point2 in justPoints:
+    #                 distancesBetweenPoints.append(self.distanceFunction(point1, point2, no_dims))
+    #
+    #     #check distances liniarity
+    #
+    #
+    #     sumOfSquaredErrorsMean = np.mean(np.array(sumsOfSquaredErrorsList))
+    #
+    #     noise = list()
+    #     noisyKs = list()
+    #
+    #     for k in sumsOfSquaredErrors:
+    #         if (sumsOfSquaredErrors[k][0] > sumOfSquaredErrorsMean):
+    #             for point in sumsOfSquaredErrors[k][1]:
+    #                 noise.append(point)
+    #             noisyKs.append(k)
+    #
+    #     for k in noisyKs:
+    #         del partition_dict[k]
+    #
+    #     return noise
 
     def splitPartitionsNew(self, partition_dict, no_dims):
 
@@ -523,39 +552,18 @@ class Denlac:
 
         print('lowPdfs ' + str(highBwPartitionsList))
 
+        # noise = noise + self.removeClutter(no_dims, partition_dict)
+
         for k in partition_dict:
             self.points_partition = partition_dict[k]
             self.id_cluster = -1
+
             pdfPartition = pdfsPartitions[k][0]
             kernelPartition = pdfsPartitions[k][1]
             self.doSplit(no_dims, kernelPartition, pdfPartition)
 
             (inner_partitions_filtered, noiseAfterSplit) = self.buildPartitionsAfterSplit(no_dims)
             noise = noise + noiseAfterSplit
-
-            # if density is low, split again
-            if (k in highBwPartitionsList):
-                inner_partitions_dict = inner_partitions_filtered
-                inner_partitions_filtered = collections.defaultdict(list)
-                part_id_filtered_final = 0
-
-                #reset already parsed points and cluster ids
-                for part_id_filtered in inner_partitions_dict:
-                    for point_inner_partition in inner_partitions_dict[part_id_filtered]:
-                        point_inner_partition[no_dims] = -1
-                        point_inner_partition[no_dims + 2] = -1
-
-                for part_id_filtered in inner_partitions_dict:
-                    self.id_cluster = -1
-                    self.points_partition = inner_partitions_dict[part_id_filtered]
-                    justPoints = [p[len(p) - 1] for p in self.points_partition]
-                    (pdfPartition, kernelPartition, _) = self.computeKDESklearn(np.array(justPoints), -2);
-                    self.doSplit(no_dims, kernelPartition, pdfPartition)
-                    (inner_partitions_filtered_intermediary, noiseAfterSplit) = self.buildPartitionsAfterSplit(no_dims)
-                    for l in inner_partitions_filtered_intermediary:
-                        inner_partitions_filtered[part_id_filtered_final] = inner_partitions_filtered_intermediary[l]
-                        part_id_filtered_final = part_id_filtered_final + 1
-                    noise = noise + noiseAfterSplit
 
             for part_id_inner in inner_partitions_filtered:
                 finalPartitions[part_id] = inner_partitions_filtered[part_id_inner]
@@ -643,7 +651,12 @@ class Denlac:
         Split the dataset in density levels
         '''
 
-        points_per_bin, bins = np.histogram(self.pdf, bins='scott')
+        # coturul cu albastru este plotat doar pentru 2 dimensiuni
+        f, xmin, xmax, ymin, ymax, xx, yy = self.evaluate_pdf_kde_sklearn(X,
+                                                                          each_dimension_values, self.bandwidth)  # pentru afisare zone dense albastre
+        plt.contourf(xx, yy, f, cmap='Blues')  # pentru afisare zone dense albastre'
+
+        points_per_bin, bins = np.histogram(self.pdf, bins=4)
 
         # plot density levels bins and create density levels partitions
         for idx_bin in range((len(bins) - 1)):
@@ -800,7 +813,7 @@ if __name__ == "__main__":
         smoothness = 1
 
     if (sys.argv[4:]):
-        bandwidth = int(sys.argv[4])  # bandwith
+        bandwidth = float(sys.argv[4])  # bandwith
     else:
         bandwidth = -1
 
