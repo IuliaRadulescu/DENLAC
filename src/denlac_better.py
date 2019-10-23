@@ -22,12 +22,12 @@ FUNCTII AUXILIARE
 
 class Denlac:
 
-    def __init__(self, no_clusters, no_bins, expand_factor, cluster_distance, no_dims):
+    def __init__(self, no_clusters, no_bins, expand_factor, no_dims):
 
         self.no_clusters = no_clusters
         self.no_bins = no_bins
         self.expand_factor = expand_factor  # expantion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
-        self.cluster_distance = cluster_distance
+
         self.no_dims = no_dims
 
         self.id_cluster = -1
@@ -316,6 +316,8 @@ class Denlac:
         k = int(math.ceil(0.1 * len(self.pixels_partition)))
         distances = list()
 
+        # get all points with density above mean
+        # take all distances between each point and its closest neighbour
         for point in self.pixels_partition:
             deja_parsati = list()
             if (point[no_dims + 1] > mean_pdf):
@@ -335,7 +337,9 @@ class Denlac:
                     k = k - 1
         distances = list(set(distances))
 
+        # if no point complies, do this instead (almost never useful)
         if (len(distances) == 0):
+            print('UGLY FALLBACK')
             k = int(math.ceil(0.1 * len(self.pixels_partition)))
             distances = list()
             for point in self.pixels_partition:
@@ -561,10 +565,6 @@ class Denlac:
                 evaluation_dict[c][idx] = 0
             idx += 1
 
-        '''for point in point2class:		
-			if point2cluster.get(point, -1) == -1:
-				print("punct pierdut dupa clustering:", point)'''
-
         for point in point2cluster:
             evaluation_dict[point2class[point]][point2cluster[point]] += 1
 
@@ -652,6 +652,8 @@ class Denlac:
 
         final_partitions, noise = self.split_partitions(partition_dict)  # functie care scindeaza partitiile
 
+        print('noise points ' + str(len(noise)) + ' from ' + str(len(dataset_xy)) + ' points')
+
         if (self.no_dims == 2):
             for k in final_partitions:
                 color = self.random_color_scaled()
@@ -660,28 +662,26 @@ class Denlac:
 
             plt.show()
 
-        joinedPartitions = collections.defaultdict(list)
-
         joinedPartitions = self.joinPartitions(final_partitions, self.no_clusters)
 
-        intermediary_centroids = []
-
-        for joinedPartitionIndex in joinedPartitions:
-            intermediary_centroids.append(self.centroid(joinedPartitions[joinedPartitionIndex]))
-
+        noise_to_partition = collections.defaultdict(list)
         # reassign the noise to the class that contains the nearest neighbor
-        # for noise_point in noise:
-        # 	#determine which is the closest cluster to noise_point
-        # 	closest_centroid = 0
-        # 	minDist = 99999
-        # 	for centroid in intermediary_centroids:
-        # 		for joinedPartitionIndex in joinedPartitions:
-        # 			for pixel in joinedPartitions[joinedPartitionIndex]:
-        # 				dist = self.DistFunc(noise_point, pixel)
-        # 				if(dist < minDist):
-        # 					minDist = dist
-        # 					closest_centroid = centroid
-        # 		joinedPartitions[joinedPartitionIndex].append(noise_point)
+        for noise_point in noise:
+            # determine which is the closest cluster to noise_point
+            closest_partition_idx = 0
+            minDist = 99999
+            for k in joinedPartitions:
+                print(noise_point)
+                print(joinedPartitions[k])
+                dist = self.calculate_smallest_pairwise([noise_point], joinedPartitions[k])
+                if (dist < minDist):
+                    closest_partition_idx = k
+                    minDist = dist
+            noise_to_partition[closest_partition_idx].append(noise_point)
+
+        for joinedPartId in noise_to_partition:
+            for noise_point in noise_to_partition[joinedPartId]:
+                joinedPartitions[joinedPartId].append(noise_point)
 
         self.evaluate_cluster(clase_points, joinedPartitions)
         print("Evaluation")
@@ -774,16 +774,7 @@ if __name__ == "__main__":
     no_clusters = int(sys.argv[2])  # no clusters
     no_bins = int(sys.argv[3])  # no bins
     expand_factor = float(sys.argv[
-                              4])  # expantion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
-    cluster_distance = int(sys.argv[5])
-    no_dims = int(sys.argv[6])  # no dims
-    '''
-	how you compute the dinstance between clusters:
-	1 = centroid linkage
-	2 = average linkage
-	3 = single linkage
-	4 = average linkage ponderat
-	'''
+                              4])  # expansion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
 
     # read from file
 
@@ -799,6 +790,7 @@ if __name__ == "__main__":
 
     for l in content:
         aux = l.split(',')
+        no_dims = len(aux) - 1
         for dim in range(no_dims):
             each_dimension_values[dim].append(float(aux[dim]))
         list_of_coords = list()
@@ -808,9 +800,9 @@ if __name__ == "__main__":
         dataset_xy_validate.append(int(aux[no_dims]))
         clase_points[int(aux[no_dims])].append(tuple(list_of_coords))
 
-    denlacInstance = Denlac(no_clusters, no_bins, expand_factor, cluster_distance, no_dims)
+    denlacInstance = Denlac(no_clusters, no_bins, expand_factor, no_dims)
     cluster_points = denlacInstance.cluster_dataset(dataset_xy, dataset_xy_validate, each_dimension_values,
                                                     clase_points)
     '''set_de_date = filename.split("/")[1].split(".")[0].title()
 	color_list = denlacInstance.return_generated_colors()'''
-# denlacInstance.plot_clusters(cluster_points, set_de_date, color_list)
+    # denlacInstance.plot_clusters(cluster_points, set_de_date, color_list)
