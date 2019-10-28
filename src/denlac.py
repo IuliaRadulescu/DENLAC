@@ -13,12 +13,6 @@ import math
 import collections
 import evaluation_measures
 
-'''
-=============================================
-FUNCTII AUXILIARE
-'''
-
-
 class Denlac:
 
     def __init__(self, noClusters, noBins, expandFactor, noDims, debugMode):
@@ -31,7 +25,6 @@ class Denlac:
         self.debugMode = debugMode
 
         self.id_cluster = -1
-        self.pdf = list()
 
     def upsertToJoinedPartitions(self, keys, partitionToAdd, joinedPartitions):
 
@@ -495,6 +488,24 @@ class Denlac:
 
         return (finalPartitions, noise)
 
+    def addNoiseToFinalPartitions(self, noise, joinedPartitions):
+        noise_to_partition = collections.defaultdict(list)
+        # reassign the noise to the class that contains the nearest neighbor
+        for noise_point in noise:
+            # determine which is the closest cluster to noise_point
+            closest_partition_idx = 0
+            minDist = 99999
+            for k in joinedPartitions:
+                dist = self.calculateSmallestPairwise([noise_point], joinedPartitions[k])
+                if (dist < minDist):
+                    closest_partition_idx = k
+                    minDist = dist
+            noise_to_partition[closest_partition_idx].append(noise_point)
+
+        for joinedPartId in noise_to_partition:
+            for noise_point in noise_to_partition[joinedPartId]:
+                joinedPartitions[joinedPartId].append(noise_point)
+
     def evaluateCluster(self, clasePoints, clusterPoints):
 
         evaluationDict = {}
@@ -536,25 +547,27 @@ class Denlac:
 
     def clusterDataset(self, datasetXY, datasetXYvalidate, eachDimensionValues, pointClasses):
 
-        partition_dict = collections.defaultdict(list)
+        intermediaryPartitionsDict = collections.defaultdict(list)
 
-        self.pdf = self.computePdfKde(datasetXY,
+        pdf = self.computePdfKde(datasetXY,
                                       eachDimensionValues)  # calculez functia densitate probabilitate utilizand kde
 
-        # detect and eliminate outliers
-
-        outliers_iqr_pdf = self.outliersIqr(self.pdf)
-        print("We identified " + str(len(outliers_iqr_pdf)) + " outliers from " + str(len(datasetXY)) + " points")
+        '''
+        Detect and eliminate outliers
+        '''
+        outliersIqrPdf = self.outliersIqr(pdf)
+        print("We identified " + str(len(outliersIqrPdf)) + " outliers from " + str(len(datasetXY)) + " points")
 
         # recompute datasetXY, x and y
-        datasetXY = [datasetXY[q] for q in range(len(datasetXY)) if q not in outliers_iqr_pdf]
+        datasetXY = [datasetXY[q] for q in range(len(datasetXY)) if q not in outliersIqrPdf]
         datasetXYvalidate = [datasetXY[q] for q in range(len(datasetXY))]
         for dim in range(noDims):
             eachDimensionValues[dim] = [datasetXY[q][dim] for q in range(len(datasetXY))]
 
-        # recalculez pdf, ca altfel se produc erori
-
-        self.pdf = self.computePdfKde(datasetXY,
+        '''
+         Compute dataset pdf
+        '''
+        pdf = self.computePdfKde(datasetXY,
                                       eachDimensionValues)  # calculez functia densitate probabilitate din nou
 
         if(self.noDims==2 and self.debugMode == 1):
@@ -563,24 +576,25 @@ class Denlac:
             plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre
 
         '''
-		Split the dataset in density levels
+		Split the dataset in density bins
 		'''
-        pixels_per_bin, bins = np.histogram(self.pdf, bins=self.no_bins)
+        pixels_per_bin, bins = np.histogram(pdf, bins=self.no_bins)
 
         for idxBin in range((len(bins) - 1)):
             color = self.randomColorScaled()
             for idxPoint in range(len(datasetXY)):
-                if (self.pdf[idxPoint] >= bins[idxBin] and self.pdf[idxPoint] <= bins[idxBin + 1]):
+                if (pdf[idxPoint] >= bins[idxBin] and pdf[idxPoint] <= bins[idxBin + 1]):
                     element_to_append = list()
                     for dim in range(self.noDims):
                         element_to_append.append(datasetXY[idxPoint][dim])
-                    element_to_append.append(-1)  # clusterul nearest neighbour din care face parte punctul
-                    element_to_append.append(self.pdf[idxPoint])
-                    element_to_append.append(-1)  # daca punctul e deja parsta nearest neighbour
-                    element_to_append.append(idxPoint)
-                    element_to_append.append(datasetXYvalidate[idxPoint])
-                    partition_dict[idxBin].append(element_to_append)
-                    # scatter doar pentru 2 sau 3 dimensiuni
+                    # additional helpful values
+                    element_to_append.append(-1)  # the split nearest-neighbour cluster the point belongs to
+                    element_to_append.append(pdf[idxPoint])
+                    element_to_append.append(-1)  # was the point already parsed?
+
+                    intermediaryPartitionsDict[idxBin].append(element_to_append)
+
+                    # scatter plot for 2d and 3d if debug mode is on
                     if (self.noDims == 2 and self.debugMode == 1):
                         plt.scatter(datasetXY[idxPoint][0], datasetXY[idxPoint][1], color=color)
                     elif (self.noDims == 3 and self.debugMode == 1):
@@ -590,10 +604,9 @@ class Denlac:
             plt.show()
 
         '''
-		Density levels distance split
+		Density levels bins distance split
 		'''
-
-        final_partitions, noise = self.splitPartitions(partition_dict)  # functie care scindeaza partitiile
+        final_partitions, noise = self.splitPartitions(intermediaryPartitionsDict)  # functie care scindeaza partitiile
 
         print('noise points ' + str(len(noise)) + ' from ' + str(len(datasetXY)) + ' points')
 
@@ -605,32 +618,24 @@ class Denlac:
 
             plt.show()
 
+        '''
+        Joining partitions based on distances
+         '''
         joinedPartitions = self.joinPartitions(final_partitions, self.no_clusters)
 
-        noise_to_partition = collections.defaultdict(list)
-        # reassign the noise to the class that contains the nearest neighbor
-        for noise_point in noise:
-            # determine which is the closest cluster to noise_point
-            closest_partition_idx = 0
-            minDist = 99999
-            for k in joinedPartitions:
-                dist = self.calculateSmallestPairwise([noise_point], joinedPartitions[k])
-                if (dist < minDist):
-                    closest_partition_idx = k
-                    minDist = dist
-            noise_to_partition[closest_partition_idx].append(noise_point)
+        '''
+        Adding what was classified as noise to the corresponding partition
+        '''
+        self.addNoiseToFinalPartitions(noise, joinedPartitions)
 
-        for joinedPartId in noise_to_partition:
-            for noise_point in noise_to_partition[joinedPartId]:
-                joinedPartitions[joinedPartId].append(noise_point)
-
+        '''
+        Evaluate performance
+        '''
         self.evaluateCluster(pointClasses, joinedPartitions)
         print("Evaluation")
         print("==============================")
 
         if (self.noDims == 2 and self.debugMode == 1):
-            # plt.contourf(xx, yy, f, cmap='Blues')
-            # final plot
             for k in joinedPartitions:
                 c = self.randomColorScaled()
                 for point in joinedPartitions[k]:
@@ -639,70 +644,6 @@ class Denlac:
             plt.show()
 
         return joinedPartitions
-
-    def plot_clusters(self, cluster_points, set_de_date, color_list):
-        fig, ax = plt.subplots(nrows=1, ncols=1)
-        sorted_ids = list()
-        cluster_ids_sorted = {}
-        l = 0
-        for k in sorted(cluster_points, key=lambda k: len(cluster_points[k]), reverse=True):
-            sorted_ids.append(k)
-            cluster_ids_sorted[k] = l
-            l = l + 1
-
-        for cluster_id in sorted_ids:
-            color = color_list[cluster_ids_sorted[cluster_id]]
-            for point in cluster_points[cluster_id]:
-                ax.scatter(point[0], point[1], color=color)
-
-        fig.savefig('F:\\IULIA\\GITHUB_denlac\\denlac\\results\\poze2\\denlac' + '_' + str(
-            set_de_date) + '.png')  # save the figure to file
-        plt.close(fig)
-
-    def return_generated_colors(self):
-        colors = [[0.4983913408111469, 0.9878468789867579, 0.6660097921680713],
-                  [0.9744941631787404, 0.2832566337094712, 0.9879204118216028],
-                  [0.2513270277379317, 0.2743083421568847, 0.24523147335002599],
-                  [0.9449152611869482, 0.6829811084805801, 0.23098727325934598],
-                  [0.2930994694413758, 0.4447870676048005, 0.9360225619487069],
-                  [0.7573766048982865, 0.3564335977711406, 0.5156761252908519],
-                  [0.7856267252783685, 0.8893618277470249, 0.9998901678967227],
-                  [0.454408739644873, 0.6276300415432641, 0.44436302877623274],
-                  [0.5960549019562876, 0.9169447263679981, 0.23343224756103573],
-                  [0.5043076141852516, 0.24928662375540336, 0.783126632292948],
-                  [0.9247167854639711, 0.8850738215338994, 0.5660824976182026],
-                  [0.6968162201133189, 0.5394098658486699, 0.8777137989623846],
-                  [0.24964251456446662, 0.8062739995395578, 0.7581261497155073],
-                  [0.2575944036656022, 0.7915937407896246, 0.2960661699553983],
-                  [0.6437636915214084, 0.4266693349653669, 0.23677001364815042],
-                  [0.23112259938541102, 0.32175446177894845, 0.645224195428065],
-                  [0.7243345083671118, 0.753389424009313, 0.6716029761309434],
-                  [0.9722842730592992, 0.47349469240107894, 0.4282317021959992],
-                  [0.9487569650924492, 0.6891786532046004, 0.9520338320784278],
-                  [0.5051885381513164, 0.7452481002341962, 0.953601834451638],
-                  [0.39319970873496335, 0.5150008439629207, 0.6894464075507598],
-                  [0.9907888356008789, 0.3349550392437493, 0.6631372416723879],
-                  [0.8941331011073401, 0.23083104173874827, 0.3338481968809],
-                  [0.995585861422136, 0.9539037035322647, 0.8814571710677304],
-                  [0.3229010345744149, 0.9929405485082905, 0.9199797840228496],
-                  [0.8587274228303506, 0.23960128391504704, 0.7796299268247159],
-                  [0.9755623661339603, 0.9736967761902182, 0.3368365287453637],
-                  [0.26070353957125486, 0.6611108693105839, 0.5626778400435902],
-                  [0.33209253309750436, 0.9376441530076292, 0.47506002838287176],
-                  [0.8388207042685366, 0.6295035956243679, 0.5353583425079034],
-                  [0.3222337347709434, 0.40224067198150343, 0.40979789009079776],
-                  [0.6442372806094001, 0.26292344132349454, 0.9763078755323873],
-                  [0.7668883074119105, 0.8486492161433142, 0.3841638241303332],
-                  [0.5216210516737045, 0.27506979815845595, 0.39564388714836696],
-                  [0.6036371225021209, 0.5467800941023466, 0.5990844069213549],
-                  [0.5988470728143217, 0.8689413295622888, 0.5609526743224205],
-                  [0.8935152630682563, 0.5596944902716602, 0.7784415487870969],
-                  [0.686841264479984, 0.9412597573588116, 0.849613972582678],
-                  [0.400134697318114, 0.5384071943290534, 0.24536921682148846],
-                  [0.5304620100522262, 0.6770501903569319, 0.718601456418752]]
-
-        return colors
-
 
 '''
 =============================================
@@ -716,7 +657,7 @@ if __name__ == "__main__":
     parser.add_argument('-nbins', '--nbins', type = int, help = "the number of density levels of the dataset")
     parser.add_argument('-expFactor', '--expansionFactor', type = float, help = "between 0.2 and 1.5 - the level of wideness of the density bins")
     parser.add_argument('-dm', '--debugMode', type = int,
-                        help = "optional, set to 1 to show debug plots and comments", default = 0)
+                        help = "optional, set to 1 to show debug plots and comments for 2 dimensional datasets", default = 0)
     args = parser.parse_args()
 
     filename = args.filename
