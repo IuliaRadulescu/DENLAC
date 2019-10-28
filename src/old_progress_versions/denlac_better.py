@@ -145,7 +145,7 @@ class Denlac:
                 numberOfPartitions = numberOfPartitions - 1
 
                 if numberOfPartitions <= finalNoClusters:
-                    break;
+                    break
 
             mergedIndexes = set(mergedIndexes)
             partitions = self.rebuildDictIndexes(partitions, joinedPartitions, mergedIndexes)

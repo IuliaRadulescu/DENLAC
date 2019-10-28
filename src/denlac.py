@@ -7,727 +7,701 @@ from sklearn.neighbors.kde import KernelDensity
 from sklearn.cluster import estimate_bandwidth
 
 import sys
-import os
 from random import randint
-from random import shuffle
+import argparse
 import math
 import collections
 import evaluation_measures
-
 
 '''
 =============================================
 FUNCTII AUXILIARE
 '''
 
+
 class Denlac:
 
-	def __init__(self, no_clusters, no_bins, expand_factor, cluster_distance, no_dims):
-		
-		self.no_clusters = no_clusters 
-		self.no_bins = no_bins
-		self.expand_factor = expand_factor # expantion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
-		self.cluster_distance = cluster_distance
-		self.no_dims = no_dims
+    def __init__(self, noClusters, noBins, expandFactor, noDims, debugMode):
 
-		self.id_cluster = -1
-		self.pixels_partition = list()
-		self.pdf = list()
+        self.no_clusters = noClusters
+        self.no_bins = noBins
+        self.expandFactor = expandFactor  # expantion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
 
-		'''
-		how you compute the dinstance between clusters:
-		1 = centroid linkage
-		2 = average linkage
-		3 = single linkage
-		4 = average linkage ponderat
-		'''
+        self.noDims = noDims
+        self.debugMode = debugMode
 
-	def agglomerative_clustering2(self, partitions, final_no_clusters, cluster_distance):
-		'''
-		Hierarchical agglomerative clustering starting with alreafy existing parititions
-		Each partition is represented by its centroid
-		Partition ids are kept in intermediary_centroids list, and the clusters with the associated points are kept in cluster_points dictionary
-		cluster_points => the keys are the partition ids (their centroids) and the values are the associated points'''
+        self.id_cluster = -1
+        self.pdf = list()
 
-		no_agg_clusters = len(partitions)
-		intermediary_centroids = list()
-		
+    def upsertToJoinedPartitions(self, keys, partitionToAdd, joinedPartitions):
 
-		cluster_points = dict()
+        upserted = False
+        for joinedPartitionsKeys in joinedPartitions:
+            if (keys[0] in joinedPartitionsKeys or keys[1] in joinedPartitionsKeys):
+                resulting_list = list(joinedPartitions[joinedPartitionsKeys])
+                resulting_list.extend(x for x in partitionToAdd if x not in resulting_list)
 
-		print("len partitions "+str(len(partitions)))
+                joinedPartitions[joinedPartitionsKeys] = resulting_list
+                upserted = True
 
-		for k in partitions:
-			centroid_partition = self.centroid(partitions[k])
-			idx_dict = list()
-			for dim in range(no_dims):
-				idx_dict.append(centroid_partition[dim])
-			cluster_points[tuple(idx_dict)] = []
-			intermediary_centroids.append(centroid_partition)
-		
-		for k in partitions:
-			centroid_partition = self.centroid(partitions[k])
-			idx_dict = list()
-			for dim in range(no_dims):
-				idx_dict.append(centroid_partition[dim])
-			for pixel in partitions[k]:
-				cluster_points[tuple(idx_dict)].append(pixel)
+        if (upserted == False):
+            joinedPartitions[keys] = partitionToAdd
 
-		#print cluster_points
+    def rebuildDictIndexes(self, dictToRebuild, joinedPartitions, mergedIndexes):
 
-		while(no_agg_clusters > final_no_clusters):
-			uneste_a_idx = 0
-			uneste_b_idx = 0
-			minDist = 99999
-			minDistancesWeights = list()
-			mdw_uneste_a_idx = list()
-			mdw_uneste_b_idx = list()
-			for q in range(len(intermediary_centroids)):
-				for p in range(q+1, len(intermediary_centroids)):
-					idx_dict_q = list()
-					idx_dict_p = list()
-					for dim in range(self.no_dims):
-						idx_dict_q.append(intermediary_centroids[q][dim])
-						idx_dict_p.append(intermediary_centroids[p][dim])
+        newDict = dict()
+        newDictIdx = 0
 
-					centroid_q = self.centroid(cluster_points[tuple(idx_dict_q)])
-					centroid_p = self.centroid(cluster_points[tuple(idx_dict_p)])
-					if(centroid_q!=centroid_p):
-						# calculate_smallest_pairwise pentru jain si spiral
-						if(cluster_distance==1):
-							dist = self.calculate_centroid(cluster_points[tuple(idx_dict_q)], cluster_points[tuple(idx_dict_p)])					
-						elif(cluster_distance==2):
-							dist = self.calculate_average_pairwise(cluster_points[tuple(idx_dict_q)], cluster_points[tuple(idx_dict_p)])
-						elif(cluster_distance==3):
-							dist = self.calculate_smallest_pairwise(cluster_points[tuple(idx_dict_q)], cluster_points[tuple(idx_dict_p)])
-						elif(cluster_distance==4):
-							dist = self.calculate_weighted_average_pairwise(cluster_points[tuple(idx_dict_q)], cluster_points[tuple(idx_dict_p)])
-						else:
-							dist = self.calculate_centroid(cluster_points[tuple(idx_dict_q)], cluster_points[tuple(idx_dict_p)])
-					
-					if(dist<minDist):
-						minDist = dist
-						uneste_a_idx = q
-						uneste_b_idx = p
-						
-			helperCluster = list()
+        for i in dictToRebuild:
+            if (i not in mergedIndexes):
+                newDict[newDictIdx] = dictToRebuild[i]
+                newDictIdx = newDictIdx + 1
 
-			idx_uneste_a = list()
-			idx_uneste_b = list()
+        for joinedPartitionsKeys in joinedPartitions:
+            newDict[newDictIdx] = joinedPartitions[joinedPartitionsKeys]
+            newDictIdx = newDictIdx + 1
 
-			for dim in range(self.no_dims):
-				idx_uneste_a.append(intermediary_centroids[uneste_a_idx][dim])
-				idx_uneste_b.append(intermediary_centroids[uneste_b_idx][dim])
+        return newDict
 
-			for cluster_point in cluster_points[tuple(idx_uneste_a)]:
-				helperCluster.append(cluster_point)
-			
-			for cluster_point in cluster_points[tuple(idx_uneste_b)]:
-				helperCluster.append(cluster_point)
+    def computeDistanceIndices(self, partitions):
 
-			
-			newCluster = self.centroid(helperCluster)
+        distances = []
 
-			
-			del cluster_points[tuple(idx_uneste_a)]
-			del cluster_points[tuple(idx_uneste_b)]
+        for i in range(len(partitions)):
+            for j in range(len(partitions)):
+                if (i == j):
+                    distBetweenPartitions = -1
+                else:
+                    distBetweenPartitions = self.calculateSmallestPairwise(partitions[i], partitions[j])
+                distances.append(distBetweenPartitions)
 
-			idx_cluster = list()
-			for dim in range(self.no_dims):
-				idx_cluster.append(newCluster[dim])
+        distances = np.array(distances)
 
-			cluster_points[tuple(idx_cluster)] = []
-			for pointHelper in helperCluster:
-				cluster_points[tuple(idx_cluster)].append(pointHelper)
+        indicesNegative = np.where(distances < 0)
+        distancesIndices = np.argsort(distances)
 
-			
-			value_a = intermediary_centroids[uneste_a_idx]
-			value_b = intermediary_centroids[uneste_b_idx]
+        finalIndices = [index for index in distancesIndices if index not in indicesNegative[0]]
 
+        return finalIndices
 
-			for cluster_point in cluster_points[tuple(idx_cluster)]:
-				if(cluster_point in intermediary_centroids):
-					intermediary_centroids = list(filter(lambda a: a != cluster_point, intermediary_centroids))
-			
-			if(value_a in intermediary_centroids):
-				intermediary_centroids = list(filter(lambda a: a != value_a, intermediary_centroids))
+    # i = index, x = amount of columns, y = amount of rows
+    def indexToCoords(self, index, columns, rows):
 
-			if(value_b in intermediary_centroids):
-				intermediary_centroids = list(filter(lambda a: a != value_b, intermediary_centroids))
+        for i in range(rows):
+            # check if the index parameter is in the row
+            if (index >= columns * i and index < (columns * i) + columns):
+                # return x, y
+                return index - columns * i, i
 
+    def joinPartitions(self, final_partitions, finalNoClusters):
 
-			intermediary_centroids.append(newCluster)	
-			no_agg_clusters = len(cluster_points)
-			
+        partitions = dict()
+        partId = 0
 
-		return intermediary_centroids, cluster_points
+        for k in final_partitions:
+            partitions[partId] = list()
+            partId = partId + 1
 
-	def compute_pdf_kde_scipy(self, dataset_xy, each_dimension_values):
-		'''
+        partId = 0
+
+        for k in final_partitions:
+            for pixel in final_partitions[k]:
+                kDimensionalPoint = list()
+                for kDim in range(self.noDims):
+                    kDimensionalPoint.append(pixel[kDim])
+                partitions[partId].append(kDimensionalPoint)
+            partId = partId + 1
+
+        numberOfPartitions = len(partitions)
+
+        distancesIndices = self.computeDistanceIndices(partitions)
+
+        while numberOfPartitions > finalNoClusters:
+
+            joinedPartitions = dict()
+            mergedIndexes = list()
+
+            for smallestDistancesIndex in distancesIndices:
+
+                (j, i) = self.indexToCoords(smallestDistancesIndex, len(partitions), len(partitions))
+                partitionToAdd = partitions[i] + partitions[j]
+
+                self.upsertToJoinedPartitions((i, j), partitionToAdd, joinedPartitions)
+
+                mergedIndexes.append(i)
+                mergedIndexes.append(j)
+
+                numberOfPartitions = numberOfPartitions - 1
+
+                if numberOfPartitions <= finalNoClusters:
+                    break
+            mergedIndexes = set(mergedIndexes)
+            partitions = self.rebuildDictIndexes(partitions, joinedPartitions, mergedIndexes)
+
+            if (self.noDims == 2 and self.debugMode == 1):
+                for k in partitions:
+                    c = self.randomColorScaled()
+                    for point in partitions[k]:
+                        plt.scatter(point[0], point[1], color=c)
+                plt.show()
+
+            numberOfPartitions = len(partitions)
+            distancesIndices = self.computeDistanceIndices(partitions)
+
+        return partitions
+
+    def computePdfKdeScipy(self, eachDimensionValues):
+        '''
 		compute pdf and its values for points in dataset_xy
 		'''
-		stacking_list = list()
-		for dim_id in each_dimension_values:
-			stacking_list.append(each_dimension_values[dim_id])
-		values = np.vstack(stacking_list)
-		kernel = st.gaussian_kde(values) 
-		pdf = kernel.evaluate(values)
+        stackingList = list()
+        for dimId in eachDimensionValues:
+            stackingList.append(eachDimensionValues[dimId])
+        values = np.vstack(stackingList)
+        kernel = st.gaussian_kde(values)
+        pdf = kernel.evaluate(values)
 
-		return pdf
+        return pdf
 
-	def compute_pdf_kde(self, dataset_xy, each_dimension_values):
-		
-		stacking_list = list()
-		for dim_id in each_dimension_values:
-			stacking_list.append(each_dimension_values[dim_id])
-		values = np.vstack(stacking_list)
-		kernel = st.gaussian_kde(values)
-		print("norm_factor = "+str(kernel._norm_factor))
-		pdf = []
-		if(kernel._norm_factor!=0):
-			#not 0, use scipy
-			pdf = self.compute_pdf_kde_scipy(dataset_xy, each_dimension_values)
-		else:
-			#0, use sklearn
-			pdf = self.compute_pdf_kde_sklearn(dataset_xy)
-		return pdf
+    def computePdfKdeSklearn(self, datasetXY):
+        '''
+        compute pdf and its values for points in dataset_xy
+        '''
+        bwSklearn = estimate_bandwidth(datasetXY)
+        print("bwSklearn este " + str(bwSklearn))
+        kde = KernelDensity(kernel='gaussian', bandwidth=bwSklearn).fit(datasetXY)
+        logPdf = kde.score_samples(datasetXY)
+        pdf = np.exp(logPdf)
+        return pdf
 
-	def compute_pdf_kde_sklearn(self, dataset_xy):
+    def computePdfKde(self, dataset_xy, eachDimensionValues):
 
-		bw_sklearn = estimate_bandwidth(dataset_xy)
-		print("bw_sklearn este "+str(bw_sklearn))
-		kde = KernelDensity(kernel='gaussian', bandwidth=bw_sklearn).fit(dataset_xy)
-		log_pdf = kde.score_samples(dataset_xy)
-		pdf = np.exp(log_pdf)
-		return pdf
+        stackingList = list()
+        for dim_id in eachDimensionValues:
+            stackingList.append(eachDimensionValues[dim_id])
+        values = np.vstack(stackingList)
+        kernel = st.gaussian_kde(values)
+        print("norm_factor = " + str(kernel._norm_factor))
 
+        if (kernel._norm_factor != 0):
+            # not 0, use scipy
+            pdf = self.computePdfKdeScipy(eachDimensionValues)
+        else:
+            # 0, use sklearn
+            pdf = self.computePdfKdeSklearn(dataset_xy)
+        return pdf
 
-	def evaluate_pdf_kde_sklearn(self, dataset_xy, each_dimension_values):
-		#pdf sklearn
-		x = list()
-		y = list()
+    def evaluatePdfKdeSklearn(self, datasetXY, eachDimensionValues):
+        # pdf sklearn
+        x = list()
+        y = list()
 
-		x = each_dimension_values[0]
-		y = each_dimension_values[1]
+        x = eachDimensionValues[0]
+        y = eachDimensionValues[1]
 
-		xmin = min(x)-2
-		xmax = max(x)+2
+        xmin = min(x) - 2
+        xmax = max(x) + 2
 
-		ymin = min(y)-2
-		ymax = max(y)+2
+        ymin = min(y) - 2
+        ymax = max(y) + 2
 
-		# Peform the kernel density estimate
-		xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
-		xx_ravel = xx.ravel()
-		yy_ravel = yy.ravel()
-		dataset_xxyy = list()
-		for q in range(len(xx_ravel)):
-			dataset_xxyy.append([xx_ravel[q], yy_ravel[q]])
-		bw_scott = self.compute_scipy_bandwidth(dataset_xy, each_dimension_values)
-		kde = KernelDensity(kernel='gaussian', bandwidth=bw_scott).fit(dataset_xy)
-		log_pdf = kde.score_samples(dataset_xxyy)
-		pdf = np.exp(log_pdf)
-		f = np.reshape(pdf.T, xx.shape)
-		return (f,xmin, xmax, ymin, ymax, xx, yy)
+        # Peform the kernel density estimate
+        xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+        xxRavel = xx.ravel()
+        yyRavel = yy.ravel()
+        datasetXXYY = list()
+        for q in range(len(xxRavel)):
+            datasetXXYY.append([xxRavel[q], yyRavel[q]])
+        bw_scott = self.computeScipyBandwidth(datasetXY, eachDimensionValues)
+        kde = KernelDensity(kernel='gaussian', bandwidth=bw_scott).fit(datasetXY)
+        log_pdf = kde.score_samples(datasetXXYY)
+        pdf = np.exp(log_pdf)
+        f = np.reshape(pdf.T, xx.shape)
+        return (f, xmin, xmax, ymin, ymax, xx, yy)
 
-
-	def evaluate_pdf_kde(self, dataset_xy, each_dimension_values):
-		'''
+    def evaluatePdfKdeScipy(self, eachDimensionValues):
+        '''
 		pdf evaluation scipy - only for two dimensions, it generates the blue density levels plot
 		'''
-		x = list()
-		y = list()
+        x = list()
+        y = list()
 
-		x = each_dimension_values[0]
-		y = each_dimension_values[1]
+        x = eachDimensionValues[0]
+        y = eachDimensionValues[1]
 
-		xmin = min(x)-2
-		xmax = max(x)+2
+        xmin = min(x) - 2
+        xmax = max(x) + 2
 
-		ymin = min(y)-2
-		ymax = max(y)+2
+        ymin = min(y) - 2
+        ymax = max(y) + 2
 
-		# Peform the kernel density estimate
-		xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
-		positions = np.vstack([xx.ravel(), yy.ravel()])
-		values = np.vstack([x, y])
-		kernel = st.gaussian_kde(values) #bw_method=
+        # Peform the kernel density estimate
+        xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+        positions = np.vstack([xx.ravel(), yy.ravel()])
+        values = np.vstack([x, y])
+        kernel = st.gaussian_kde(values)  # bw_method=
 
-		scott_fact = kernel.scotts_factor()
-		print("who is scott eval? "+str(scott_fact))
+        scottFact = kernel.scotts_factor()
+        print("who is scott eval? " + str(scottFact))
 
-		f = np.reshape(kernel(positions).T, xx.shape)
-		return (f,xmin, xmax, ymin, ymax, xx, yy)
+        f = np.reshape(kernel(positions).T, xx.shape)
+        return f, xmin, xmax, ymin, ymax, xx, yy
 
+    def randomColorScaled(self):
+        b = randint(0, 255)
+        g = randint(0, 255)
+        r = randint(0, 255)
+        return [round(b / 255, 2), round(g / 255, 2), round(r / 255, 2)]
 
-	def random_color_scaled(self):
-		b = randint(0, 255)
-		g = randint(0, 255)
-		r = randint(0, 255)
-		return [round(b/255,2), round(g/255,2), round(r/255,2)]
+    def DistFunc(self, x, y):
 
-	def DistFunc(self, x, y):
+        sum_powers = 0
+        for dim in range(self.noDims):
+            sum_powers = math.pow(x[dim] - y[dim], 2) + sum_powers
+        return math.sqrt(sum_powers)
 
-		sum_powers = 0
-		for dim in range(self.no_dims):
-			sum_powers = math.pow(x[dim]-y[dim], 2) + sum_powers
-		return math.sqrt(sum_powers)
+    def centroid(self, objects):
 
-	def centroid(self, pixels):
-		
-		sum_each_dim = {}
-		for dim in range(self.no_dims):
-			sum_each_dim[dim] = 0
+        sumEachDim = {}
+        for dim in range(self.noDims):
+            sumEachDim[dim] = 0
 
-		for pixel in pixels:
-			for dim in range(self.no_dims):
-				sum_each_dim[dim] = sum_each_dim[dim] + pixel[dim]
-		
-		centroid_coords = list()
-		for sum_id in sum_each_dim:
-			centroid_coords.append(round(sum_each_dim[sum_id]/len(pixels), 2))
+        for object in objects:
+            for dim in range(self.noDims):
+                sumEachDim[dim] = sumEachDim[dim] + object[dim]
 
-		centroid_coords = tuple(centroid_coords)
+        centroidCoords = list()
+        for sumId in sumEachDim:
+            centroidCoords.append(round(sumEachDim[sumId] / len(objects), 2))
 
-		return centroid_coords
+        centroidCoords = tuple(centroidCoords)
 
-		
-	def outliers_iqr(self, ys):
-		'''
+        return centroidCoords
+
+    def outliersIqr(self, ys):
+        '''
 		Outliers detection with IQR
 		'''
-		quartile_1, quartile_3 = np.percentile(ys, [25, 75])
-		iqr = quartile_3 - quartile_1
-		lower_bound = quartile_1 - (iqr * 1.5)
-		upper_bound = quartile_3 + (iqr * 1.5)
-		outliers_iqr = list()
-		for idx in range(len(ys)):
-			if ys[idx] < lower_bound:
-				outliers_iqr.append(idx)
-		return outliers_iqr
+        quartile1, quartile3 = np.percentile(ys, [25, 75])
+        iqr = quartile3 - quartile1
+        lowerBound = quartile1 - (iqr * 1.5)
+        upperBound = quartile3 + (iqr * 1.5)
+        outliersIqr = list()
+        for idx in range(len(ys)):
+            if ys[idx] < lowerBound:
+                outliersIqr.append(idx)
+        return outliersIqr
 
-	def get_closest_mean(self):
-		'''
+    def calculateSmallestPairwise(self, cluster1, cluster2):
+
+        minPairwise = 999999
+        for pixel1 in cluster1:
+            for pixel2 in cluster2:
+                if (pixel1 != pixel2):
+                    distBetween = self.DistFunc(pixel1, pixel2)
+                    if (distBetween < minPairwise):
+                        minPairwise = distBetween
+        return minPairwise
+
+    def getClosestMean(self, pointsPartition):
+        '''
 		The mean of k pairwise distances
 		'''
 
-		just_pdfs = [point[self.no_dims+1] for point in self.pixels_partition]
-		just_pdfs = list(set(just_pdfs))
+        justPdfs = [point[self.noDims + 1] for point in pointsPartition]
+        justPdfs = list(set(justPdfs))
 
-		mean_pdf = sum(just_pdfs)/len(just_pdfs)
-		k=int(math.ceil(0.1*len(self.pixels_partition)))
-		distances = list()
+        mean_pdf = sum(justPdfs) / len(justPdfs)
+        k = int(math.ceil(0.1 * len(pointsPartition)))
+        distances = list()
 
-		for point in self.pixels_partition:
-			deja_parsati = list()
-			if(point[no_dims+1] > mean_pdf):
-				while(k>0):
-					neigh_id = 0
-					minDist = 99999
-					for id_point_k in range(len(self.pixels_partition)):
-						point_k = self.pixels_partition[id_point_k]
-						if(point_k not in deja_parsati):
-							dist = self.DistFunc(point, point_k)
-							if(dist < minDist and dist > 0):
-								minDist = dist
-								neigh_id = id_point_k
-					distances.append(minDist)
-					neigh = self.pixels_partition[neigh_id]
-					deja_parsati.append(neigh)
-					k=k-1
-		distances = list(set(distances))
+        # get all points with density above mean
+        # take all distances between each point and its closest neighbour
+        for point in pointsPartition:
+            deja_parsati = list()
+            if (point[noDims + 1] > mean_pdf):
+                while (k > 0):
+                    neigh_id = 0
+                    minDist = 99999
+                    for id_point_k in range(len(pointsPartition)):
+                        point_k = pointsPartition[id_point_k]
+                        if (point_k not in deja_parsati):
+                            dist = self.DistFunc(point, point_k)
+                            if (dist < minDist and dist > 0):
+                                minDist = dist
+                                neigh_id = id_point_k
+                    distances.append(minDist)
+                    neigh = pointsPartition[neigh_id]
+                    deja_parsati.append(neigh)
+                    k = k - 1
+        distances = list(set(distances))
 
-		if(len(distances)==0):
-			k=int(math.ceil(0.1*len(self.pixels_partition)))
-			distances = list()
-			for point in self.pixels_partition:
-				deja_parsati = list()
-				while(k>0):
-					neigh_id = 0
-					minDist = 99999
-					for id_point_k in range(len(self.pixels_partition)):
-						point_k = self.pixels_partition[id_point_k]
-						if(point_k not in deja_parsati):
-							dist = self.DistFunc(point, point_k)
-							if(dist < minDist and dist > 0):
-								minDist = dist
-								neigh_id = id_point_k
-					distances.append(minDist)
-					neigh = self.pixels_partition[neigh_id]
-					deja_parsati.append(neigh)
-					k=k-1
-			distances = list(set(distances))
+        # if no point complies, do this instead (almost never useful)
+        if (len(distances) == 0):
+            print('UGLY FALLBACK')
+            k = int(math.ceil(0.1 * len(pointsPartition)))
+            distances = list()
+            for point in pointsPartition:
+                deja_parsati = list()
+                while (k > 0):
+                    neigh_id = 0
+                    minDist = 99999
+                    for id_point_k in range(len(pointsPartition)):
+                        point_k = pointsPartition[id_point_k]
+                        if (point_k not in deja_parsati):
+                            dist = self.DistFunc(point, point_k)
+                            if (dist < minDist and dist > 0):
+                                minDist = dist
+                                neigh_id = id_point_k
+                    distances.append(minDist)
+                    neigh = pointsPartition[neigh_id]
+                    deja_parsati.append(neigh)
+                    k = k - 1
+            distances = list(set(distances))
 
+        return sum(distances) / len(distances)
 
-		return sum(distances)/len(distances)
-
-	def get_closestk_neigh(self, point, id_point):
-		'''
+    def getClosestKNeigh(self, point, id_point, pointsPartition):
+        '''
 		Get a point's closest v neighbours
 		v is not a constant!! for each point you keep adding neighbours
 		untill the distance from the next neigbour and the point is larger than
-		expand_factor * closest_mean (closest_mean este calculata de functia anterioara)
+		expand_factor * closestMean (closestMean este calculata de functia anterioara)
 		'''
-		
-		neigh_ids = list()
-		distances = list()
-		deja_parsati = list()
-		pot_continua = 1
-		closest_mean = self.get_closest_mean()
-		while(pot_continua==1):
-			minDist = 99999
-			neigh_id = 0
-			for id_point_k in range(len(self.pixels_partition)):
-				point_k = self.pixels_partition[id_point_k]
-				if(point_k not in deja_parsati):
-					dist = self.DistFunc(point, point_k)
-					if(dist < minDist and dist > 0):
-						minDist = dist
-						neigh_id = id_point_k
-			
 
-			if(minDist <= expand_factor*closest_mean):
-				neigh = self.pixels_partition[neigh_id]
-				neigh_ids.append([neigh_id, neigh])
-				distances.append(minDist)
-				
-				deja_parsati.append(neigh)
-			else:
-				pot_continua = 0
-			
-		neigh_ids.sort(key=lambda x: x[1])
+        neighIds = list()
+        distances = list()
+        alreadyParsed = list()
+        canContinue = 1
+        closestMean = self.getClosestMean(pointsPartition)
+        while (canContinue == 1):
+            minDist = 99999
+            neighId = 0
+            for idPointK in range(len(pointsPartition)):
+                pointK = pointsPartition[idPointK]
+                if (pointK not in alreadyParsed):
+                    dist = self.DistFunc(point, pointK)
+                    if (dist < minDist and dist > 0):
+                        minDist = dist
+                        neighId = idPointK
 
-		neigh_ids_final = [n_id[0] for n_id in neigh_ids]
+            if (minDist <= self.expandFactor * closestMean):
+                neigh = pointsPartition[neighId]
+                neighIds.append([neighId, neigh])
+                distances.append(minDist)
 
-		return neigh_ids_final
+                alreadyParsed.append(neigh)
+            else:
+                canContinue = 0
 
+        neighIds.sort(key=lambda x: x[1])
 
-	def expand_knn(self, point_id):
-		'''
+        neighIdsFinal = [n_id[0] for n_id in neighIds]
+
+        return neighIdsFinal
+
+    def expandKnn(self, point_id, pointsPartition):
+        '''
 		Extend current cluster
-		Take the current point's nearest v neighbours 
+		Take the current point's nearest v neighbours
 		Add them to the cluster
 		Take the v neighbours of the v neighbours and add them to the cluster
 		When you can't expand anymore start new cluster
 		'''
 
-		point = self.pixels_partition[point_id]
-		neigh_ids = self.get_closestk_neigh(point, point_id)
-		
-		if(len(neigh_ids)>0):
-			self.pixels_partition[point_id][self.no_dims] = self.id_cluster
-			self.pixels_partition[point_id][self.no_dims+2] = 1
-			for neigh_id in neigh_ids:
-				
-				if(self.pixels_partition[neigh_id][self.no_dims+2]==-1):
-					self.expand_knn(neigh_id)
-		else:
-			self.pixels_partition[point_id][self.no_dims] = -1
-			self.pixels_partition[point_id][self.no_dims+2] = 1
-			
+        point = pointsPartition[point_id]
+        neigh_ids = self.getClosestKNeigh(point, point_id, pointsPartition)
 
-	def calculate_weighted_average_pairwise(self, cluster1, cluster2):
-		
+        if (len(neigh_ids) > 0):
+            pointsPartition[point_id][self.noDims] = self.id_cluster
+            pointsPartition[point_id][self.noDims + 2] = 1
+            for neigh_id in neigh_ids:
 
-		average_pairwise = 0
-		sum_pairwise = 0
-		sum_ponderi = 0
+                if (pointsPartition[neigh_id][self.noDims + 2] == -1):
+                    self.expandKnn(neigh_id, pointsPartition)
+        else:
+            pointsPartition[point_id][self.noDims] = -1
+            pointsPartition[point_id][self.noDims + 2] = 1
 
-		for pixel1 in cluster1:
-			for pixel2 in cluster2:
-				distBetween = self.DistFunc(pixel1, pixel2)
-				
-				sum_pairwise = sum_pairwise + abs(pixel1[self.no_dims+1]-pixel2[self.no_dims+1])*distBetween
-				sum_ponderi = sum_ponderi + abs(pixel1[self.no_dims+1]-pixel2[self.no_dims+1])
+    def splitPartitions(self, partition_dict):
 
-		average_pairwise = sum_pairwise/sum_ponderi
-		return average_pairwise
+        print("Expand factor " + str(self.expandFactor))
+        noise = list()
+        noClustersPartition = 1
+        partId = 0
+        finalPartitions = collections.defaultdict(list)
 
+        for k in partition_dict:
 
-	def calculate_average_pairwise(self, cluster1, cluster2):
+            # EXPANSION STEP
 
-		average_pairwise = 0
-		sum_pairwise = 0
-		nr = 0
+            self.id_cluster = -1
+            pointsPartition = partition_dict[k]
 
-		for pixel1 in cluster1:
-			for pixel2 in cluster2:
-				distBetween = self.DistFunc(pixel1, pixel2)
-				sum_pairwise = sum_pairwise + distBetween
-				nr = nr + 1
+            for pixel_id in range(len(pointsPartition)):
+                pixel = pointsPartition[pixel_id]
 
-		average_pairwise = sum_pairwise/nr
-		return average_pairwise
+                if (pointsPartition[pixel_id][self.noDims] == -1):
+                    self.id_cluster = self.id_cluster + 1
+                    noClustersPartition = noClustersPartition + 1
+                    pointsPartition[pixel_id][self.noDims + 2] = 1
+                    pointsPartition[pixel_id][self.noDims] = self.id_cluster
+                    neigh_ids = self.getClosestKNeigh(pixel, pixel_id, pointsPartition)
 
-	def calculate_smallest_pairwise(self, cluster1, cluster2):
+                    for neigh_id in neigh_ids:
+                        if (pointsPartition[neigh_id][self.noDims] == -1):
+                            pointsPartition[neigh_id][self.noDims + 2] = 1
+                            pointsPartition[neigh_id][self.noDims] = self.id_cluster
+                            self.expandKnn(neigh_id, pointsPartition)
 
-		min_pairwise = 999999
-		for pixel1 in cluster1:
-			for pixel2 in cluster2:
-				if(pixel1!=pixel2):
-					distBetween = self.DistFunc(pixel1, pixel2)
-					if(distBetween < min_pairwise):
-						min_pairwise = distBetween
-		return min_pairwise
+            innerPartitions = collections.defaultdict(list)
+            innerPartitionsFiltered = collections.defaultdict(list)
+            partIdInner = 0
 
+            # ARRANGE STEP
 
-	def calculate_centroid(self, cluster1, cluster2):
-		centroid1 = self.centroid(cluster1)
-		centroid2 = self.centroid(cluster2)
+            for i in range(noClustersPartition):
+                for pixel in pointsPartition:
+                    if (pixel[self.noDims] == i):
+                        innerPartitions[partIdInner].append(pixel)
+                partIdInner = partIdInner + 1
 
-		dist = self.DistFunc(centroid1, centroid2)
+            # add noise too
+            for pixel in pointsPartition:
+                if (pixel[self.noDims] == -1):
+                    innerPartitions[partIdInner].append(pixel)
+                    partIdInner = partIdInner + 1
 
-		return dist
+            # filter partitions - eliminate the ones with a single point and add them to the noise list
+            keysToDelete = list()
+            for k in innerPartitions:
+                if (len(innerPartitions[k]) <= 1):
+                    keysToDelete.append(k)
+                    # we save these points and assign them to the closest cluster
+                    if (len(innerPartitions[k]) > 0):
+                        for pinner in innerPartitions[k]:
+                            noise.append(pinner)
+            for k in keysToDelete:
+                del innerPartitions[k]
 
-	def split_partitions(self, partition_dict):
+            partIdFiltered = 0
+            for part_id_k in innerPartitions:
+                innerPartitionsFiltered[partIdFiltered] = innerPartitions[part_id_k]
+                partIdFiltered = partIdFiltered + 1
 
-		print("Expand factor "+str(self.expand_factor))
-		noise = list()
-		no_clusters_partition = 1
-		part_id=0
-		final_partitions = collections.defaultdict(list)
+            for partIdInner in innerPartitionsFiltered:
+                finalPartitions[partId] = innerPartitionsFiltered[partIdInner]
+                partId = partId + 1
 
-		for k in partition_dict:
-			self.pixels_partition = partition_dict[k]
+        return (finalPartitions, noise)
 
-			self.id_cluster = -1
+    def evaluateCluster(self, clasePoints, clusterPoints):
 
-			for pixel_id in range(len(self.pixels_partition)):
-				pixel = self.pixels_partition[pixel_id]
-				
-				if(self.pixels_partition[pixel_id][self.no_dims]==-1):
-					self.id_cluster = self.id_cluster + 1
-					no_clusters_partition = no_clusters_partition + 1
-					self.pixels_partition[pixel_id][self.no_dims+2] = 1
-					self.pixels_partition[pixel_id][self.no_dims] = self.id_cluster
-					neigh_ids = self.get_closestk_neigh(pixel, pixel_id)
-					
-					for neigh_id in neigh_ids:
-						if(self.pixels_partition[neigh_id][self.no_dims]==-1):
-							self.pixels_partition[neigh_id][self.no_dims+2]=1
-							self.pixels_partition[neigh_id][self.no_dims]=self.id_cluster
-							self.expand_knn(neigh_id)
-						
-			inner_partitions = collections.defaultdict(list)
-			inner_partitions_filtered = collections.defaultdict(list)
-			part_id_inner = 0
+        evaluationDict = {}
+        point2cluster = {}
+        point2class = {}
 
-			for i in range(no_clusters_partition):
-				for pixel in self.pixels_partition:
-					if(pixel[self.no_dims]==i):
-						inner_partitions[part_id_inner].append(pixel)
-				part_id_inner = part_id_inner+1
-			#adaug si zgomotul
-			for pixel in self.pixels_partition:
-				if(pixel[self.no_dims]==-1):
-					inner_partitions[part_id_inner].append(pixel)
-					part_id_inner = part_id_inner+1
-					
+        idx = 0
+        for elem in clasePoints:
+            evaluationDict[idx] = {}
+            for points in clasePoints[elem]:
+                point2class[points] = idx
+            idx += 1
 
-			#filter partitions - le elimin pe cele care contin un singur punct
-			keys_to_delete = list()
-			for k in inner_partitions:
-				if(len(inner_partitions[k])<=1):
-					keys_to_delete.append(k)
-					#salvam aceste puncte si le reasignam la sfarsit celui mai apropiat cluster
-					if(len(inner_partitions[k])>0):
-						for pinner in inner_partitions[k]:
-							noise.append(pinner)
-			for k in keys_to_delete:
-				del inner_partitions[k]
+        idx = 0
+        for elem in clusterPoints:
+            for point in clusterPoints[elem]:
+                indexDict = list()
+                for dim in range(self.noDims):
+                    indexDict.append(point[dim])
+                point2cluster[tuple(indexDict)] = idx
+            for c in evaluationDict:
+                evaluationDict[c][idx] = 0
+            idx += 1
 
-			part_id_filtered = 0
-			for part_id_k in inner_partitions:
-				inner_partitions_filtered[part_id_filtered] = inner_partitions[part_id_k]
-				part_id_filtered = part_id_filtered + 1
+        for point in point2cluster:
+            evaluationDict[point2class[point]][point2cluster[point]] += 1
 
+        print('Purity:  ', evaluation_measures.purity(evaluationDict))
+        print('Entropy: ', evaluation_measures.entropy(evaluationDict))  # perfect results have entropy == 0
+        print('RI       ', evaluation_measures.rand_index(evaluationDict))
+        print('ARI      ', evaluation_measures.adj_rand_index(evaluationDict))
 
-			for part_id_inner in inner_partitions_filtered:
-				final_partitions[part_id] = inner_partitions_filtered[part_id_inner]
-				part_id = part_id + 1
+        f = open("rezultate_evaluare.txt", "a")
+        f.write('Purity:  ' + str(evaluation_measures.purity(evaluationDict)) + "\n")
+        f.write('Entropy:  ' + str(evaluation_measures.entropy(evaluationDict)) + "\n")
+        f.write('RI:  ' + str(evaluation_measures.rand_index(evaluationDict)) + "\n")
+        f.write('ARI:  ' + str(evaluation_measures.adj_rand_index(evaluationDict)) + "\n")
+        f.close()
 
-		return (final_partitions, noise)
+    def clusterDataset(self, datasetXY, datasetXYvalidate, eachDimensionValues, pointClasses):
 
+        partition_dict = collections.defaultdict(list)
 
-	def evaluate_cluster(self, clase_points, cluster_points):
-		
-		evaluation_dict = {}
-		point2cluster = {}
-		point2class = {}
+        self.pdf = self.computePdfKde(datasetXY,
+                                      eachDimensionValues)  # calculez functia densitate probabilitate utilizand kde
 
-		idx = 0
-		for elem in clase_points:
-			evaluation_dict[idx] = {}
-			for points in clase_points[elem]:
-				point2class[points] = idx
-			idx += 1
+        # detect and eliminate outliers
 
-		idx = 0
-		for elem in cluster_points:
-			for point in cluster_points[elem]:
-				index_dict = list()
-				for dim in range(self.no_dims):
-					index_dict.append(point[dim])
-				point2cluster[tuple(index_dict)] = idx
-			for c in evaluation_dict:
-				evaluation_dict[c][idx] = 0
-			idx += 1
+        outliers_iqr_pdf = self.outliersIqr(self.pdf)
+        print("We identified " + str(len(outliers_iqr_pdf)) + " outliers from " + str(len(datasetXY)) + " points")
 
-		'''for point in point2class:		
-			if point2cluster.get(point, -1) == -1:
-				print("punct pierdut dupa clustering:", point)'''
+        # recompute datasetXY, x and y
+        datasetXY = [datasetXY[q] for q in range(len(datasetXY)) if q not in outliers_iqr_pdf]
+        datasetXYvalidate = [datasetXY[q] for q in range(len(datasetXY))]
+        for dim in range(noDims):
+            eachDimensionValues[dim] = [datasetXY[q][dim] for q in range(len(datasetXY))]
 
-		for point in point2cluster:
-			evaluation_dict[point2class[point]][point2cluster[point]] += 1
-				
+        # recalculez pdf, ca altfel se produc erori
 
-		print('Purity:  ', evaluation_measures.purity(evaluation_dict))
-		print('Entropy: ', evaluation_measures.entropy(evaluation_dict)) # perfect results have entropy == 0
-		print('RI       ', evaluation_measures.rand_index(evaluation_dict))
-		print('ARI      ', evaluation_measures.adj_rand_index(evaluation_dict))
+        self.pdf = self.computePdfKde(datasetXY,
+                                      eachDimensionValues)  # calculez functia densitate probabilitate din nou
 
-		f = open("rezultate_evaluare.txt", "a")
-		f.write('Purity:  '+str(evaluation_measures.purity(evaluation_dict))+"\n")
-		f.write('Entropy:  '+str(evaluation_measures.entropy(evaluation_dict))+"\n")
-		f.write('RI:  '+str(evaluation_measures.rand_index(evaluation_dict))+"\n")
-		f.write('ARI:  '+str(evaluation_measures.adj_rand_index(evaluation_dict))+"\n")
-		f.close()
+        if(self.noDims==2 and self.debugMode == 1):
+            #plot pdf contour plot
+            f,xmin, xmax, ymin, ymax, xx, yy = self.evaluatePdfKdeScipy(eachDimensionValues) #pentru afisare zone dense albastre
+            plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre
 
-	def cluster_dataset(self, dataset_xy, dataset_xy_validate, each_dimension_values, clase_points):
-
-		partition_dict = collections.defaultdict(list)			
-
-		self.pdf = self.compute_pdf_kde(dataset_xy, each_dimension_values) #calculez functia densitate probabilitate utilizand kde
-
-		#detectie si eliminare outlieri
-
-		outliers_iqr_pdf = self.outliers_iqr(self.pdf)
-		print("We identified "+str(len(outliers_iqr_pdf))+" outliers from "+str(len(dataset_xy))+" points")
-		'''
-		print("The outliers are:")
-		for outlier_id in outliers_iqr_pdf:
-			print(dataset_xy[outlier_id])'''
-		print("======================================")
-
-		dataset_xy_aux = list()
-		each_dimension_values_aux = collections.defaultdict(list)
-
-		#refac dataset_xy, x si y
-
-		dataset_xy = [dataset_xy[q] for q in range(len(dataset_xy)) if q not in outliers_iqr_pdf]
-		dataset_xy_validate = [dataset_xy[q] for q in range(len(dataset_xy))]
-		for dim in range(no_dims):
-			each_dimension_values[dim] = [dataset_xy[q][dim] for q in range(len(dataset_xy))]
-
-		#recalculez pdf, ca altfel se produc erori
-
-		self.pdf = self.compute_pdf_kde(dataset_xy, each_dimension_values) #calculez functia densitate probabilitate din nou
-
-		'''if(self.no_dims==2):
-			#coturul cu albastru este plotat doar pentru 2 dimensiuni
-			f,xmin, xmax, ymin, ymax, xx, yy = self.evaluate_pdf_kde(dataset_xy, each_dimension_values) #pentru afisare zone dense albastre
-			plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre'''
-			
-		
-		'''
+        '''
 		Split the dataset in density levels
 		'''
+        pixels_per_bin, bins = np.histogram(self.pdf, bins=self.no_bins)
 
-		pixels_per_bin, bins = np.histogram(self.pdf, bins=self.no_bins)
+        for idxBin in range((len(bins) - 1)):
+            color = self.randomColorScaled()
+            for idxPoint in range(len(datasetXY)):
+                if (self.pdf[idxPoint] >= bins[idxBin] and self.pdf[idxPoint] <= bins[idxBin + 1]):
+                    element_to_append = list()
+                    for dim in range(self.noDims):
+                        element_to_append.append(datasetXY[idxPoint][dim])
+                    element_to_append.append(-1)  # clusterul nearest neighbour din care face parte punctul
+                    element_to_append.append(self.pdf[idxPoint])
+                    element_to_append.append(-1)  # daca punctul e deja parsta nearest neighbour
+                    element_to_append.append(idxPoint)
+                    element_to_append.append(datasetXYvalidate[idxPoint])
+                    partition_dict[idxBin].append(element_to_append)
+                    # scatter doar pentru 2 sau 3 dimensiuni
+                    if (self.noDims == 2 and self.debugMode == 1):
+                        plt.scatter(datasetXY[idxPoint][0], datasetXY[idxPoint][1], color=color)
+                    elif (self.noDims == 3 and self.debugMode == 1):
+                        plt.scatter(datasetXY[idxPoint][0], datasetXY[idxPoint][1], datasetXY[idxPoint][2],
+                                    color=color)
+        if ((self.noDims == 2 or self.noDims == 3) and self.debugMode == 1):
+            plt.show()
 
-		#plot density levels bins and create density levels partitions
-		for idx_bin in range( (len(bins)-1) ):
-			culoare = self.random_color_scaled()
-			for idx_point in range(len(dataset_xy)):
-				if(self.pdf[idx_point]>=bins[idx_bin] and self.pdf[idx_point]<=bins[idx_bin+1]):
-					element_to_append = list()
-					for dim in range(self.no_dims):
-						element_to_append.append(dataset_xy[idx_point][dim])
-					element_to_append.append(-1) #clusterul nearest neighbour din care face parte punctul
-					element_to_append.append(self.pdf[idx_point])
-					element_to_append.append(-1) #daca punctul e deja parsta nearest neighbour
-					element_to_append.append(idx_point) 
-					element_to_append.append(dataset_xy_validate[idx_point])
-					partition_dict[idx_bin].append(element_to_append)
-					#scatter doar pentru 2 sau 3 dimensiuni
-					if(self.no_dims == 2):
-						plt.scatter(dataset_xy[idx_point][0], dataset_xy[idx_point][1], color=culoare)
-					elif(self.no_dims == 3):
-						plt.scatter(dataset_xy[idx_point][0], dataset_xy[idx_point][1], dataset_xy[idx_point][2], color=culoare)
-		if(self.no_dims == 2 or self.no_dims == 3):
-			plt.show()
-
-
-		'''
+        '''
 		Density levels distance split
 		'''
-		
-		final_partitions, noise = self.split_partitions(partition_dict) #functie care scindeaza partitiile
-		
-		'''if(self.no_dims==2):
-			for k in final_partitions:
-				color = self.random_color_scaled()
-				for pixel in final_partitions[k]:
-					plt.scatter(pixel[0], pixel[1], color=color)
 
-			plt.show()'''
+        final_partitions, noise = self.splitPartitions(partition_dict)  # functie care scindeaza partitiile
 
+        print('noise points ' + str(len(noise)) + ' from ' + str(len(datasetXY)) + ' points')
 
-		intermediary_centroids, cluster_points = self.agglomerative_clustering2(final_partitions, self.no_clusters, self.cluster_distance) #paramateri: partitiile rezultate, numarul de clustere
-		
+        if (self.noDims == 2 and self.debugMode == 1):
+            for k in final_partitions:
+                color = self.randomColorScaled()
+                for pixel in final_partitions[k]:
+                    plt.scatter(pixel[0], pixel[1], color=color)
 
-		#reassign the noise to the class that contains the nearest neighbor
-		for noise_point in noise:
-			#determine which is the closest cluster to noise_point
-			closest_centroid = 0
-			minDist = 99999
-			for centroid in intermediary_centroids:
-				for pixel in cluster_points[centroid]:
-					dist = self.DistFunc(noise_point, pixel)
-					if(dist < minDist):
-						minDist = dist
-						closest_centroid = centroid
-			cluster_points[closest_centroid].append(noise_point)
+            plt.show()
 
-		self.evaluate_cluster(clase_points, cluster_points)
-		print("Evaluation")
-		print("==============================")
-		
-		if(self.no_dims==2):
-			#plt.contourf(xx, yy, f, cmap='Blues')
-			#final plot
-			for k in cluster_points:
-				c = self.random_color_scaled()
-				for point in cluster_points[k]:
-					plt.scatter(point[0], point[1], color=c)
+        joinedPartitions = self.joinPartitions(final_partitions, self.no_clusters)
 
-			plt.show()
+        noise_to_partition = collections.defaultdict(list)
+        # reassign the noise to the class that contains the nearest neighbor
+        for noise_point in noise:
+            # determine which is the closest cluster to noise_point
+            closest_partition_idx = 0
+            minDist = 99999
+            for k in joinedPartitions:
+                dist = self.calculateSmallestPairwise([noise_point], joinedPartitions[k])
+                if (dist < minDist):
+                    closest_partition_idx = k
+                    minDist = dist
+            noise_to_partition[closest_partition_idx].append(noise_point)
 
-		return cluster_points
+        for joinedPartId in noise_to_partition:
+            for noise_point in noise_to_partition[joinedPartId]:
+                joinedPartitions[joinedPartId].append(noise_point)
 
-	def plot_clusters(self, cluster_points, set_de_date, color_list):
-		fig, ax = plt.subplots(nrows=1, ncols=1)
-		sorted_ids = list()
-		cluster_ids_sorted = {}
-		l = 0
-		for k in sorted(cluster_points, key=lambda k: len(cluster_points[k]), reverse=True):
-			sorted_ids.append(k)
-			cluster_ids_sorted[k] = l
-			l = l+1
+        self.evaluateCluster(pointClasses, joinedPartitions)
+        print("Evaluation")
+        print("==============================")
 
-		for cluster_id in sorted_ids:
-			color = color_list[cluster_ids_sorted[cluster_id]]
-			#print(color)
-			for point in cluster_points[cluster_id]:
-				ax.scatter(point[0], point[1], color=color)
+        if (self.noDims == 2 and self.debugMode == 1):
+            # plt.contourf(xx, yy, f, cmap='Blues')
+            # final plot
+            for k in joinedPartitions:
+                c = self.randomColorScaled()
+                for point in joinedPartitions[k]:
+                    plt.scatter(point[0], point[1], color=c)
 
-		fig.savefig('F:\\IULIA\\GITHUB_denlac\\denlac\\results\\poze2\\denlac'+'_'+str(set_de_date)+'.png')   # save the figure to file
-		plt.close(fig)
+            plt.show()
 
-	def return_generated_colors(self):
-		colors = [[0.4983913408111469, 0.9878468789867579, 0.6660097921680713], [0.9744941631787404, 0.2832566337094712, 0.9879204118216028], [0.2513270277379317, 0.2743083421568847, 0.24523147335002599], [0.9449152611869482, 0.6829811084805801, 0.23098727325934598], [0.2930994694413758, 0.4447870676048005, 0.9360225619487069], [0.7573766048982865, 0.3564335977711406, 0.5156761252908519], [0.7856267252783685, 0.8893618277470249, 0.9998901678967227], [0.454408739644873, 0.6276300415432641, 0.44436302877623274], [0.5960549019562876, 0.9169447263679981, 0.23343224756103573], [0.5043076141852516, 0.24928662375540336, 0.783126632292948], [0.9247167854639711, 0.8850738215338994, 0.5660824976182026], [0.6968162201133189, 0.5394098658486699, 0.8777137989623846], [0.24964251456446662, 0.8062739995395578, 0.7581261497155073], [0.2575944036656022, 0.7915937407896246, 0.2960661699553983], [0.6437636915214084, 0.4266693349653669, 0.23677001364815042], [0.23112259938541102, 0.32175446177894845, 0.645224195428065], [0.7243345083671118, 0.753389424009313, 0.6716029761309434], [0.9722842730592992, 0.47349469240107894, 0.4282317021959992], [0.9487569650924492, 0.6891786532046004, 0.9520338320784278], [0.5051885381513164, 0.7452481002341962, 0.953601834451638], [0.39319970873496335, 0.5150008439629207, 0.6894464075507598], [0.9907888356008789, 0.3349550392437493, 0.6631372416723879], [0.8941331011073401, 0.23083104173874827, 0.3338481968809], [0.995585861422136, 0.9539037035322647, 0.8814571710677304], [0.3229010345744149, 0.9929405485082905, 0.9199797840228496], [0.8587274228303506, 0.23960128391504704, 0.7796299268247159], [0.9755623661339603, 0.9736967761902182, 0.3368365287453637], [0.26070353957125486, 0.6611108693105839, 0.5626778400435902], [0.33209253309750436, 0.9376441530076292, 0.47506002838287176], [0.8388207042685366, 0.6295035956243679, 0.5353583425079034], [0.3222337347709434, 0.40224067198150343, 0.40979789009079776], [0.6442372806094001, 0.26292344132349454, 0.9763078755323873], [0.7668883074119105, 0.8486492161433142, 0.3841638241303332], [0.5216210516737045, 0.27506979815845595, 0.39564388714836696], [0.6036371225021209, 0.5467800941023466, 0.5990844069213549], [0.5988470728143217, 0.8689413295622888, 0.5609526743224205], [0.8935152630682563, 0.5596944902716602, 0.7784415487870969], [0.686841264479984, 0.9412597573588116, 0.849613972582678], [0.400134697318114, 0.5384071943290534, 0.24536921682148846], [0.5304620100522262, 0.6770501903569319, 0.718601456418752]]
+        return joinedPartitions
 
-		return colors
+    def plot_clusters(self, cluster_points, set_de_date, color_list):
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        sorted_ids = list()
+        cluster_ids_sorted = {}
+        l = 0
+        for k in sorted(cluster_points, key=lambda k: len(cluster_points[k]), reverse=True):
+            sorted_ids.append(k)
+            cluster_ids_sorted[k] = l
+            l = l + 1
+
+        for cluster_id in sorted_ids:
+            color = color_list[cluster_ids_sorted[cluster_id]]
+            for point in cluster_points[cluster_id]:
+                ax.scatter(point[0], point[1], color=color)
+
+        fig.savefig('F:\\IULIA\\GITHUB_denlac\\denlac\\results\\poze2\\denlac' + '_' + str(
+            set_de_date) + '.png')  # save the figure to file
+        plt.close(fig)
+
+    def return_generated_colors(self):
+        colors = [[0.4983913408111469, 0.9878468789867579, 0.6660097921680713],
+                  [0.9744941631787404, 0.2832566337094712, 0.9879204118216028],
+                  [0.2513270277379317, 0.2743083421568847, 0.24523147335002599],
+                  [0.9449152611869482, 0.6829811084805801, 0.23098727325934598],
+                  [0.2930994694413758, 0.4447870676048005, 0.9360225619487069],
+                  [0.7573766048982865, 0.3564335977711406, 0.5156761252908519],
+                  [0.7856267252783685, 0.8893618277470249, 0.9998901678967227],
+                  [0.454408739644873, 0.6276300415432641, 0.44436302877623274],
+                  [0.5960549019562876, 0.9169447263679981, 0.23343224756103573],
+                  [0.5043076141852516, 0.24928662375540336, 0.783126632292948],
+                  [0.9247167854639711, 0.8850738215338994, 0.5660824976182026],
+                  [0.6968162201133189, 0.5394098658486699, 0.8777137989623846],
+                  [0.24964251456446662, 0.8062739995395578, 0.7581261497155073],
+                  [0.2575944036656022, 0.7915937407896246, 0.2960661699553983],
+                  [0.6437636915214084, 0.4266693349653669, 0.23677001364815042],
+                  [0.23112259938541102, 0.32175446177894845, 0.645224195428065],
+                  [0.7243345083671118, 0.753389424009313, 0.6716029761309434],
+                  [0.9722842730592992, 0.47349469240107894, 0.4282317021959992],
+                  [0.9487569650924492, 0.6891786532046004, 0.9520338320784278],
+                  [0.5051885381513164, 0.7452481002341962, 0.953601834451638],
+                  [0.39319970873496335, 0.5150008439629207, 0.6894464075507598],
+                  [0.9907888356008789, 0.3349550392437493, 0.6631372416723879],
+                  [0.8941331011073401, 0.23083104173874827, 0.3338481968809],
+                  [0.995585861422136, 0.9539037035322647, 0.8814571710677304],
+                  [0.3229010345744149, 0.9929405485082905, 0.9199797840228496],
+                  [0.8587274228303506, 0.23960128391504704, 0.7796299268247159],
+                  [0.9755623661339603, 0.9736967761902182, 0.3368365287453637],
+                  [0.26070353957125486, 0.6611108693105839, 0.5626778400435902],
+                  [0.33209253309750436, 0.9376441530076292, 0.47506002838287176],
+                  [0.8388207042685366, 0.6295035956243679, 0.5353583425079034],
+                  [0.3222337347709434, 0.40224067198150343, 0.40979789009079776],
+                  [0.6442372806094001, 0.26292344132349454, 0.9763078755323873],
+                  [0.7668883074119105, 0.8486492161433142, 0.3841638241303332],
+                  [0.5216210516737045, 0.27506979815845595, 0.39564388714836696],
+                  [0.6036371225021209, 0.5467800941023466, 0.5990844069213549],
+                  [0.5988470728143217, 0.8689413295622888, 0.5609526743224205],
+                  [0.8935152630682563, 0.5596944902716602, 0.7784415487870969],
+                  [0.686841264479984, 0.9412597573588116, 0.849613972582678],
+                  [0.400134697318114, 0.5384071943290534, 0.24536921682148846],
+                  [0.5304620100522262, 0.6770501903569319, 0.718601456418752]]
+
+        return colors
 
 
 '''
@@ -735,46 +709,45 @@ class Denlac:
 Denlac Algorithm
 '''
 if __name__ == "__main__":
-	
-	filename = sys.argv[1]
-	no_clusters = int(sys.argv[2]) #no clusters
-	no_bins = int(sys.argv[3]) #no bins
-	expand_factor = float(sys.argv[4]) # expantion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
-	cluster_distance = int(sys.argv[5])
-	no_dims = int(sys.argv[6]) #no dims
-	'''
-	how you compute the dinstance between clusters:
-	1 = centroid linkage
-	2 = average linkage
-	3 = single linkage
-	4 = average linkage ponderat
-	'''
 
-	#read from file
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--filename', help = "the filename which contains the dataset")
+    parser.add_argument('-nclusters', '--nclusters', type = int, help = "the desired number of clusters")
+    parser.add_argument('-nbins', '--nbins', type = int, help = "the number of density levels of the dataset")
+    parser.add_argument('-expFactor', '--expansionFactor', type = float, help = "between 0.2 and 1.5 - the level of wideness of the density bins")
+    parser.add_argument('-dm', '--debugMode', type = int,
+                        help = "optional, set to 1 to show debug plots and comments", default = 0)
+    args = parser.parse_args()
 
-	each_dimension_values = collections.defaultdict(list)
-	dataset_xy = list()
-	dataset_xy_validate = list()
-	clase_points = collections.defaultdict(list)
+    filename = args.filename
+    no_clusters = int(args.nclusters)  # no clusters
+    no_bins = int(args.nbins)  # no bins
+    expand_factor = float(args.expansionFactor)  # expansion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
+    debugMode = args.debugMode
 
-	with open(filename) as f:
-			content = f.readlines()
+    # read from file
+    each_dimension_values = collections.defaultdict(list)
+    datasetXY = list()
+    datasetXYValidate = list()
+    pointsClasses = collections.defaultdict(list)
 
-	content = [l.strip() for l in content]
+    with open(filename) as f:
+        content = f.readlines()
 
-	for l in content:
-		aux = l.split(',')
-		for dim in range(no_dims):
-			each_dimension_values[dim].append(float(aux[dim]))
-		list_of_coords = list()
-		for dim in range(no_dims):
-			list_of_coords.append(float(aux[dim]))
-		dataset_xy.append(list_of_coords)
-		dataset_xy_validate.append(int(aux[no_dims]))
-		clase_points[int(aux[no_dims])].append(tuple(list_of_coords))
+    content = [l.strip() for l in content]
 
-	denlacInstance = Denlac(no_clusters, no_bins, expand_factor, cluster_distance, no_dims)
-	cluster_points = denlacInstance.cluster_dataset(dataset_xy, dataset_xy_validate, each_dimension_values, clase_points)
-	'''set_de_date = filename.split("/")[1].split(".")[0].title()
-	color_list = denlacInstance.return_generated_colors()'''
-	#denlacInstance.plot_clusters(cluster_points, set_de_date, color_list)
+    noDims = 0
+    for l in content:
+        aux = l.split(',')
+        noDims = len(aux) - 1
+        for dim in range(noDims):
+            each_dimension_values[dim].append(float(aux[dim]))
+        listOfCoords = list()
+        for dim in range(noDims):
+            listOfCoords.append(float(aux[dim]))
+        datasetXY.append(listOfCoords)
+        datasetXYValidate.append(int(aux[noDims]))
+        pointsClasses[int(aux[noDims])].append(tuple(listOfCoords))
+
+    denlacInstance = Denlac(no_clusters, no_bins, expand_factor, noDims, debugMode)
+    cluster_points = denlacInstance.clusterDataset(datasetXY, datasetXYValidate, each_dimension_values, pointsClasses)
