@@ -1,9 +1,5 @@
 # denlac
 
-### Run parameters for improved version (denlac_better2):
-* no_clusters
-* no_neigbors - the number of nearest neighbors in the k-nearest-neigbors graph
-
 ### Run parameters:
 * filename of the dataset
 * no_clusters
