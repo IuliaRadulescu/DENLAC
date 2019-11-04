@@ -16,7 +16,7 @@ import evaluation_measures
 
 class Denlac:
 
-    def __init__(self, noClusters, noBins, expandFactor, noDims, debugMode):
+    def __init__(self, noClusters, noBins, expandFactor, noDims, aggMethod, debugMode):
 
         self.no_clusters = noClusters
         self.no_bins = noBins
@@ -24,6 +24,7 @@ class Denlac:
 
         self.noDims = noDims
         self.debugMode = debugMode
+        self.aggMethod = aggMethod
 
         self.id_cluster = -1
 
@@ -49,27 +50,43 @@ class Denlac:
 
         return joinedPartitionsAux
 
-    def rebuildDictIndexes(self, dictToRebuild):
+    def rebuildDictIndexes(self, dictToRebuild, distBetweenPartitionsCache):
 
         newDict = dict()
+        newCacheDict = dict()
         newDictIdx = 0
+
+        oldNewIndexesCorrelation = {}
 
         for i in dictToRebuild:
             newDict[newDictIdx] = dictToRebuild[i]
+            oldNewIndexesCorrelation[i] = newDictIdx
             newDictIdx = newDictIdx + 1
 
-        return newDict, newDictIdx
+        for keyTuple in distBetweenPartitionsCache:
+            if(keyTuple[0] in oldNewIndexesCorrelation and keyTuple[1] in oldNewIndexesCorrelation):
+                newI = oldNewIndexesCorrelation[keyTuple[0]]
+                newJ = oldNewIndexesCorrelation[keyTuple[1]]
+                newCacheDict[(newI, newJ)] = distBetweenPartitionsCache[keyTuple]
 
-    def computeDistanceIndices(self, partitions):
+        return newDict, newCacheDict, newDictIdx
 
-        print('dimensiune partitii '+ str(len(partitions)))
+    def computeDistanceIndices(self, partitions, distBetweenPartitionsCache):
+
         distances = []
         for i in range(len(partitions)):
             for j in range(len(partitions)):
                 if (i == j):
                     distBetweenPartitions = -1
                 else:
-                    distBetweenPartitions = self.calculateSmallestPairwise(partitions[i], partitions[j])
+                    if (i, j) in distBetweenPartitionsCache:
+                        distBetweenPartitions = distBetweenPartitionsCache[(i, j)]
+                    else:
+                        if (self.aggMethod == 2):
+                            distBetweenPartitions = self.calculateAveragePairwise(partitions[i], partitions[j])
+                        else:
+                            distBetweenPartitions = self.calculateSmallestPairwise(partitions[i], partitions[j])
+                        distBetweenPartitionsCache[(i, j)] = distBetweenPartitions
                 distances.append(distBetweenPartitions)
 
         # sort by distance
@@ -125,7 +142,8 @@ class Denlac:
                 partitions[partId].append(kDimensionalPoint)
             partId = partId + 1
 
-        distancesIndices = self.computeDistanceIndices(partitions)
+        distBetweenPartitionsCache = {}
+        distancesIndices = self.computeDistanceIndices(partitions, distBetweenPartitionsCache)
 
         while len(partitions) > finalNoClusters:
 
@@ -141,13 +159,14 @@ class Denlac:
             if (j in partitions):
                 del partitions[j]
 
-            (partitions, newDictIdx) = self.rebuildDictIndexes(partitions)
+            if ((i,j) in distBetweenPartitionsCache):
+                del distBetweenPartitionsCache[(i,j)]
+
+            (partitions, distBetweenPartitionsCache, newDictIdx) = self.rebuildDictIndexes(partitions, distBetweenPartitionsCache)
 
             partitions[newDictIdx] = partitionToAdd
 
-            print('len part dupa ' + str(len(partitions)))
-
-            distancesIndices = self.computeDistanceIndices(partitions)
+            distancesIndices = self.computeDistanceIndices(partitions, distBetweenPartitionsCache)
 
 
         if (self.noDims == 2 and self.debugMode == 1):
@@ -303,7 +322,6 @@ class Denlac:
 
     def calculateAveragePairwise(self, cluster1, cluster2):
 
-        #print('ajunge in pairwise')
         average_pairwise = 0
         sum_pairwise = 0
         nr = 0
@@ -688,6 +706,8 @@ if __name__ == "__main__":
     parser.add_argument('-nclusters', '--nclusters', type = int, help = "the desired number of clusters")
     parser.add_argument('-nbins', '--nbins', type = int, help = "the number of density levels of the dataset")
     parser.add_argument('-expFactor', '--expansionFactor', type = float, help = "between 0.2 and 1.5 - the level of wideness of the density bins")
+    parser.add_argument('-aggMethod', '--agglomerationMethod', type=int,
+                        help="1 smallest pairwise (default) or 2 average pairwise", default = 1)
     parser.add_argument('-dm', '--debugMode', type = int,
                         help = "optional, set to 1 to show debug plots and comments for 2 dimensional datasets", default = 0)
     args = parser.parse_args()
@@ -696,6 +716,7 @@ if __name__ == "__main__":
     no_clusters = int(args.nclusters)  # no clusters
     no_bins = int(args.nbins)  # no bins
     expand_factor = float(args.expansionFactor)  # expansion factor how much a cluster can expand based on the number of neighbours -- factorul cu care inmultesc closest mean (cat de mult se poate extinde un cluster pe baza vecinilor)
+    aggMethod = int(args.agglomerationMethod)
     debugMode = args.debugMode
 
     # read from file
@@ -722,5 +743,5 @@ if __name__ == "__main__":
         datasetXYValidate.append(int(aux[noDims]))
         pointsClasses[int(aux[noDims])].append(tuple(listOfCoords))
 
-    denlacInstance = Denlac(no_clusters, no_bins, expand_factor, noDims, debugMode)
+    denlacInstance = Denlac(no_clusters, no_bins, expand_factor, noDims, aggMethod, debugMode)
     cluster_points = denlacInstance.clusterDataset(datasetXY, datasetXYValidate, each_dimension_values, pointsClasses)
