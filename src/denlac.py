@@ -83,7 +83,7 @@ class Denlac:
                         distBetweenPartitions = distBetweenPartitionsCache[(i, j)]
                     else:
                         if (self.aggMethod == 2):
-                            distBetweenPartitions = self.calculateAveragePairwise(partitions[i], partitions[j])
+                            distBetweenPartitions = self.calculateCentroid(partitions[i], partitions[j])
                         else:
                             distBetweenPartitions = self.calculateSmallestPairwise(partitions[i], partitions[j])
                         distBetweenPartitionsCache[(i, j)] = distBetweenPartitions
@@ -345,6 +345,14 @@ class Denlac:
                     if (distBetween < minPairwise):
                         minPairwise = distBetween
         return minPairwise
+
+    def calculateCentroid(self, cluster1, cluster2):
+        centroid1 = self.centroid(cluster1)
+        centroid2 = self.centroid(cluster2)
+
+        dist = self.DistFunc(centroid1, centroid2)
+
+        return dist
 
     def getClosestMean(self, pointsPartition):
         '''
@@ -707,7 +715,7 @@ if __name__ == "__main__":
     parser.add_argument('-nbins', '--nbins', type = int, help = "the number of density levels of the dataset")
     parser.add_argument('-expFactor', '--expansionFactor', type = float, help = "between 0.2 and 1.5 - the level of wideness of the density bins")
     parser.add_argument('-aggMethod', '--agglomerationMethod', type=int,
-                        help="1 smallest pairwise (default) or 2 average pairwise", default = 1)
+                        help="1 smallest pairwise (default) or 2 centroid", default = 1)
     parser.add_argument('-dm', '--debugMode', type = int,
                         help = "optional, set to 1 to show debug plots and comments for 2 dimensional datasets", default = 0)
     args = parser.parse_args()

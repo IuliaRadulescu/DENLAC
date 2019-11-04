@@ -5,7 +5,7 @@
 * nclusters - the desired number of clusters
 * nbins - usually the number of optimal density levels
 * expFactor - between 0.1 and 2
-* aggMethod - by default 1
+* aggMethod - by default 1, 2 for centroid
 
 Run examples: 
 * python ssrc/denlac.py -f datasets/aggregation.txt -nclusters 7 -nbins 8 -expFactor 0.8 -aggMethod 2
