@@ -49,16 +49,21 @@ class Denlac:
 
         return joinedPartitionsAux
 
-    def rebuildDictIndexes(self, dictToRebuild):
+    def rebuildDictIndexes(self, dictToRebuild, joinedPartitions, mergedIndexes):
 
         newDict = dict()
         newDictIdx = 0
 
         for i in dictToRebuild:
-            newDict[newDictIdx] = dictToRebuild[i]
+            if (i not in mergedIndexes):
+                newDict[newDictIdx] = dictToRebuild[i]
+                newDictIdx = newDictIdx + 1
+
+        for joinedPartitionsKeys in joinedPartitions:
+            newDict[newDictIdx] = joinedPartitions[joinedPartitionsKeys]
             newDictIdx = newDictIdx + 1
 
-        return newDict, newDictIdx
+        return newDict
 
     def computeDistanceIndices(self, partitions):
 
@@ -66,6 +71,8 @@ class Denlac:
         distances = []
         for i in range(len(partitions)):
             for j in range(len(partitions)):
+                # print('len i' + str(len(partitions[i])))
+                # print('len j' + str(len(partitions[j])))
                 if (i == j):
                     distBetweenPartitions = -1
                 else:
@@ -125,30 +132,41 @@ class Denlac:
                 partitions[partId].append(kDimensionalPoint)
             partId = partId + 1
 
+        numberOfPartitions = len(partitions)
+
         distancesIndices = self.computeDistanceIndices(partitions)
+        joinedPartitions = {}
+        mergedIndexes = list()
 
-        while len(partitions) > finalNoClusters:
+        #print('distance Indices ' + str(distancesIndices))
 
-            smallestDistancesIndex = distancesIndices[0]
+        initalPartitions = partitions.copy()
 
-            (j, i) = self.indexToCoords(smallestDistancesIndex, len(partitions), len(partitions))
-            partitionToAdd = partitions[i] + partitions[j]
+        for smallestDistancesIndex in distancesIndices:
+
+            #print('smallest Index ' + str(smallestDistancesIndex))
+
+            (j, i) = self.indexToCoords(smallestDistancesIndex, len(initalPartitions), len(initalPartitions))
+            partitionToAdd = initalPartitions[i] + initalPartitions[j]
             partitionToAdd = self.sortAndDeduplicate(partitionToAdd)
 
-            if (i in partitions):
-                del partitions[i]
+            joinedPartitions = self.upsertToJoinedPartitions((i, j), partitionToAdd, joinedPartitions)
 
-            if (j in partitions):
-                del partitions[j]
+            mergedIndexes.append(i)
+            mergedIndexes.append(j)
+            mergedIndexes = list(set(mergedIndexes))
 
-            (partitions, newDictIdx) = self.rebuildDictIndexes(partitions)
+            print('nr part inainte ' + str(numberOfPartitions))
+            print('len part inainte ' + str(len(partitions)))
 
-            partitions[newDictIdx] = partitionToAdd
+            partitions = self.rebuildDictIndexes(partitions, joinedPartitions, mergedIndexes)
+
+            numberOfPartitions = len(partitions)
 
             print('len part dupa ' + str(len(partitions)))
 
-            distancesIndices = self.computeDistanceIndices(partitions)
-
+            if numberOfPartitions <= finalNoClusters:
+                break
 
         if (self.noDims == 2 and self.debugMode == 1):
             for k in partitions:
@@ -156,6 +174,8 @@ class Denlac:
                 for point in partitions[k]:
                     plt.scatter(point[0], point[1], color=c)
             plt.show()
+
+        #distancesIndices = self.computeDistanceIndices(partitions)
 
         return partitions
 
