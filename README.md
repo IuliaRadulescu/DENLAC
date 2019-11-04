@@ -1,21 +1,22 @@
 # denlac
 
 ### Run parameters:
-* filename of the dataset
-* no_clusters
-* no_bins
-* expand_factor
+* f - filename of the dataset
+* nclusters - the desired number of clusters
+* nbins - usually the number of optimal density levels
+* expFactor - between 0.1 and 2
+* aggMethod - by default 1
 
 Run examples: 
-* python ssrc/denlac_better.py -f datasets/aggregation.txt -nclusters 7 -nbins 8 -expFactor 0.8
-* python src/denlac_better.py -f datasets/spiral.txt -nclusters 3 -nbins 3 - expFactor 1
-* python src/denlac.py -f datasets/r15.txt -nclusters 15 -nbins 3 - expFactor 0.5
-* python src/denlac_better.py -f datasets/jain.txt -nclusters 2 -nbins 3 -expFactor 1.5
-* python src/denlac_better.py -f datasets/pathbased.txt -nclusters 3 -nbins 3 -expFactor 0.5
-* python src/denlac_better.py -f datasets/flame.txt -nclusters 2 -nbins 2 -expFactor 1 
-* python ssrc/denlac_better.py -f datasets/compound.txt -nclusters 6 -nbins 3 -expFactor 1 
-* python src/denlac.py -f datasets/d31.txt -nclusters 31 -nbins 7 -expFactor 0.1
-* python src/denlac_better.py -f datasets/irisDenlacText.txt -nclusters 3 -nbins 5 -expFactor 0.1
+* python ssrc/denlac.py -f datasets/aggregation.txt -nclusters 7 -nbins 8 -expFactor 0.8 -aggMethod 2
+* python src/denlac.py -f datasets/spiral.txt -nclusters 3 -nbins 3 -expFactor 1
+* python src/denlac.py -f datasets/r15.txt -nclusters 15 -nbins 3 -expFactor 0.5
+* python src/denlac.py -f datasets/jain.txt -nclusters 2 -nbins 3 -expFactor 1.5
+* python src/denlac.py -f datasets/pathbased.txt -nclusters 3 -nbins 3 -expFactor 0.5
+* python src/denlac.py -f datasets/flame.txt -nclusters 2 -nbins 2 -expFactor 1 
+* python ssrc/denlac.py -f datasets/compound.txt -nclusters 6 -nbins 3 -expFactor 1 
+* python src/denlac.py -f datasets/d31.txt -nclusters 31 -nbins 7 -expFactor 0.1 -aggMethod 2
+* python src/denlac.py -f datasets/irisDenlacText.txt -nclusters 3 -nbins 5 -expFactor 0.1
 -------------------------------------------------------------------------------------------------
 
 ## Datasets:
