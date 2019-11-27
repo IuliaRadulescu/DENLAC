@@ -182,12 +182,8 @@ class Denlac:
         '''
 		compute pdf and its values for points in dataset_xy
 		'''
-        stackingList = list()
-        for dimId in eachDimensionValues:
-            stackingList.append(eachDimensionValues[dimId])
-        values = np.vstack(stackingList)
-        kernel = st.gaussian_kde(values)
-        pdf = kernel.evaluate(values)
+        kernel = st.gaussian_kde(eachDimensionValues)
+        pdf = kernel.evaluate(eachDimensionValues)
 
         return pdf
 
@@ -204,10 +200,7 @@ class Denlac:
 
     def computePdfKde(self, dataset_xy, eachDimensionValues):
 
-        stackingList = list()
-        for dim_id in eachDimensionValues:
-            stackingList.append(eachDimensionValues[dim_id])
-        values = np.vstack(stackingList)
+        values = np.vstack(eachDimensionValues)
         kernel = st.gaussian_kde(values)
         print("norm_factor = " + str(kernel._norm_factor))
 
@@ -564,18 +557,31 @@ class Denlac:
             for noise_point in noise_to_partition[joinedPartId]:
                 joinedPartitions[joinedPartId].append(noise_point)
 
-    def evaluateCluster(self, clasePoints, clusterPoints):
+    def evaluateCluster(self, dataset, clusterPoints):
 
         evaluationDict = {}
         point2cluster = {}
         point2class = {}
+        point2classAux = {}
 
+        for point in dataset:
+            clusterId = len(point) - 1
+            point2classAux[tuple(point[0:clusterId])] = point[clusterId]
+
+        listOfTuples = sorted(point2classAux.items() ,  key=lambda x: x[1])
+        # reindex values from 0 to n, but keep the point assignments
         idx = 0
-        for elem in clasePoints:
-            evaluationDict[idx] = {}
-            for points in clasePoints[elem]:
-                point2class[points] = idx
-            idx += 1
+        lastValue = listOfTuples[0][1]
+        print(lastValue)
+        for key, value in listOfTuples:
+            # if value has changed (it's an interruption 1,1,1, 2 - then increment the index, it's a new class
+            if (point2classAux[key] != lastValue):
+                idx += 1
+                lastValue = point2classAux[key]
+            point2class[key] = idx
+
+        for clusterId in point2class.values():
+            evaluationDict[clusterId] = {}
 
         idx = 0
         for elem in clusterPoints:
@@ -603,12 +609,15 @@ class Denlac:
         f.write('ARI:  ' + str(evaluation_measures.adj_rand_index(evaluationDict)) + "\n")
         f.close()
 
-    def clusterDataset(self, datasetXY, datasetXYvalidate, eachDimensionValues, pointClasses):
+    def clusterDataset(self, dataset):
+
+        # we want to use the dataset without cluster index in our processing
+        datasetXY = np.array(dataset)[:,:-1]
 
         intermediaryPartitionsDict = collections.defaultdict(list)
 
         pdf = self.computePdfKde(datasetXY,
-                                      eachDimensionValues)  # calculez functia densitate probabilitate utilizand kde
+                                      list(np.array(datasetXY).transpose()))  # calculez functia densitate probabilitate utilizand kde
 
         '''
         Detect and eliminate outliers
@@ -618,19 +627,16 @@ class Denlac:
 
         # recompute datasetXY, x and y
         datasetXY = [datasetXY[q] for q in range(len(datasetXY)) if q not in outliersIqrPdf]
-        datasetXYvalidate = [datasetXY[q] for q in range(len(datasetXY))]
-        for dim in range(noDims):
-            eachDimensionValues[dim] = [datasetXY[q][dim] for q in range(len(datasetXY))]
 
         '''
          Compute dataset pdf
         '''
         pdf = self.computePdfKde(datasetXY,
-                                      eachDimensionValues)  # calculez functia densitate probabilitate din nou
+                                      list(np.array(datasetXY).transpose()))  # calculez functia densitate probabilitate din nou
 
         if(self.noDims==2 and self.debugMode == 1):
             #plot pdf contour plot
-            f,xmin, xmax, ymin, ymax, xx, yy = self.evaluatePdfKdeScipy(eachDimensionValues) #pentru afisare zone dense albastre
+            f,xmin, xmax, ymin, ymax, xx, yy = self.evaluatePdfKdeScipy(list(np.array(datasetXY).transpose())) #pentru afisare zone dense albastre
             plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre
 
         '''
@@ -689,7 +695,7 @@ class Denlac:
         '''
         Evaluate performance
         '''
-        self.evaluateCluster(pointClasses, joinedPartitions)
+        self.evaluateCluster(dataset, joinedPartitions)
         print("Evaluation")
         print("==============================")
 
@@ -715,7 +721,7 @@ if __name__ == "__main__":
     parser.add_argument('-nbins', '--nbins', type = int, help = "the number of density levels of the dataset")
     parser.add_argument('-expFactor', '--expansionFactor', type = float, help = "between 0.2 and 1.5 - the level of wideness of the density bins")
     parser.add_argument('-aggMethod', '--agglomerationMethod', type=int,
-                        help="1 smallest pairwise (default) or 2 centroid", default = 1)
+                        help="1 smallest pairwise (default) or 2 centroidclo", default = 1)
     parser.add_argument('-dm', '--debugMode', type = int,
                         help = "optional, set to 1 to show debug plots and comments for 2 dimensional datasets", default = 0)
     args = parser.parse_args()
@@ -728,10 +734,7 @@ if __name__ == "__main__":
     debugMode = args.debugMode
 
     # read from file
-    each_dimension_values = collections.defaultdict(list)
-    datasetXY = list()
-    datasetXYValidate = list()
-    pointsClasses = collections.defaultdict(list)
+    dataset = list()
 
     with open(filename) as f:
         content = f.readlines()
@@ -742,14 +745,11 @@ if __name__ == "__main__":
     for l in content:
         aux = l.split(',')
         noDims = len(aux) - 1
-        for dim in range(noDims):
-            each_dimension_values[dim].append(float(aux[dim]))
         listOfCoords = list()
         for dim in range(noDims):
             listOfCoords.append(float(aux[dim]))
-        datasetXY.append(listOfCoords)
-        datasetXYValidate.append(int(aux[noDims]))
-        pointsClasses[int(aux[noDims])].append(tuple(listOfCoords))
+        listOfCoords.append(int(aux[noDims]))
+        dataset.append(listOfCoords)
 
     denlacInstance = Denlac(no_clusters, no_bins, expand_factor, noDims, aggMethod, debugMode)
-    cluster_points = denlacInstance.clusterDataset(datasetXY, datasetXYValidate, each_dimension_values, pointsClasses)
+    cluster_points = denlacInstance.clusterDataset(dataset)
