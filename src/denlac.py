@@ -28,28 +28,6 @@ class Denlac:
 
         self.id_cluster = -1
 
-    def upsertToJoinedPartitions(self, addKeys, partitionToAdd, joinedPartitions):
-
-        upserted = False
-
-        joinedPartitionsAux = {}
-
-        for joinedPartitionsKeys in joinedPartitions:
-            if (addKeys[0] in joinedPartitionsKeys or addKeys[1] in joinedPartitionsKeys):
-                resulting_list = list(joinedPartitions[joinedPartitionsKeys])
-                resulting_list.extend([x for x in partitionToAdd if x not in resulting_list])
-                resulting_list = self.sortAndDeduplicate(resulting_list)
-                joinedPartitionsKeysNew = tuple(set(joinedPartitionsKeys + addKeys))
-                joinedPartitionsAux[joinedPartitionsKeysNew] = resulting_list
-                upserted = True
-            else:
-                joinedPartitionsAux[joinedPartitionsKeys] = joinedPartitions[joinedPartitionsKeys]
-
-        if (upserted == False):
-            joinedPartitionsAux[addKeys] = partitionToAdd
-
-        return joinedPartitionsAux
-
     def rebuildDictIndexes(self, dictToRebuild, distBetweenPartitionsCache):
 
         newDict = dict()
