@@ -3,7 +3,8 @@ from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as st
-from sklearn.neighbors.kde import KernelDensity
+from sklearn.neighbors.kde import KernelDensity, KDTree
+from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import estimate_bandwidth
 
 import sys
@@ -13,6 +14,7 @@ import argparse
 import math
 import collections
 import evaluation_measures
+import time
 
 class Denlac:
 
@@ -325,63 +327,21 @@ class Denlac:
 
         return dist
 
-    def getClosestMean(self, pointsPartition):
-        '''
-		The mean of k pairwise distances
-		'''
+    def getCorrectRadius(self, pointsPartition):
 
-        justPdfs = [point[self.noDims + 1] for point in pointsPartition]
-        justPdfs = list(set(justPdfs))
+        pointsRelevantDimensions = [point[0:self.noDims] for point in pointsPartition]
+        pointsRelevantDimensions = np.array(pointsRelevantDimensions)
 
-        mean_pdf = sum(justPdfs) / len(justPdfs)
-        k = int(math.ceil(0.1 * len(pointsPartition)))
-        distances = list()
+        ns = 4
+        nbrs = NearestNeighbors(n_neighbors=ns).fit(pointsRelevantDimensions)
+        distances, indices = nbrs.kneighbors(pointsRelevantDimensions)
+        distanceDec = sorted(distances[:, ns - 1], reverse=True)
 
-        # get all points with density above mean
-        # take all distances between each point and its closest neighbour
-        for point in pointsPartition:
-            deja_parsati = list()
-            if (point[noDims + 1] > mean_pdf):
-                while (k > 0):
-                    neigh_id = 0
-                    minDist = 99999
-                    for id_point_k in range(len(pointsPartition)):
-                        point_k = pointsPartition[id_point_k]
-                        if (point_k not in deja_parsati):
-                            dist = self.DistFunc(point, point_k)
-                            if (dist < minDist and dist > 0):
-                                minDist = dist
-                                neigh_id = id_point_k
-                    distances.append(minDist)
-                    neigh = pointsPartition[neigh_id]
-                    deja_parsati.append(neigh)
-                    k = k - 1
-        distances = list(set(distances))
+        distanceDec = np.array(distanceDec)
+        maxSlopeIdx = np.argmax(distanceDec[:-1] - distanceDec[1:])
 
-        # if no point complies, do this instead (almost never useful)
-        if (len(distances) == 0):
-            print('UGLY FALLBACK')
-            k = int(math.ceil(0.1 * len(pointsPartition)))
-            distances = list()
-            for point in pointsPartition:
-                deja_parsati = list()
-                while (k > 0):
-                    neigh_id = 0
-                    minDist = 99999
-                    for id_point_k in range(len(pointsPartition)):
-                        point_k = pointsPartition[id_point_k]
-                        if (point_k not in deja_parsati):
-                            dist = self.DistFunc(point, point_k)
-                            if (dist < minDist and dist > 0):
-                                minDist = dist
-                                neigh_id = id_point_k
-                    distances.append(minDist)
-                    neigh = pointsPartition[neigh_id]
-                    deja_parsati.append(neigh)
-                    k = k - 1
-            distances = list(set(distances))
+        return distanceDec[maxSlopeIdx]
 
-        return sum(distances) / len(distances)
 
     def getClosestKNeigh(self, point, id_point, pointsPartition):
         '''
@@ -395,7 +355,7 @@ class Denlac:
         distances = list()
         alreadyParsed = list()
         canContinue = 1
-        closestMean = self.getClosestMean(pointsPartition)
+        closestMean = self.getCorrectRadius(pointsPartition)
         while (canContinue == 1):
             minDist = 99999
             neighId = 0
