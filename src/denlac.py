@@ -351,36 +351,17 @@ class Denlac:
 		expand_factor * closestMean (closestMean este calculata de functia anterioara)
 		'''
 
-        neighIds = list()
-        distances = list()
-        alreadyParsed = list()
-        canContinue = 1
         closestMean = self.getCorrectRadius(pointsPartition)
-        while (canContinue == 1):
-            minDist = 99999
-            neighId = 0
-            for idPointK in range(len(pointsPartition)):
-                pointK = pointsPartition[idPointK]
-                if (pointK not in alreadyParsed):
-                    dist = self.DistFunc(point, pointK)
-                    if (dist < minDist and dist > 0):
-                        minDist = dist
-                        neighId = idPointK
 
-            if (minDist <= self.expandFactor * closestMean):
-                neigh = pointsPartition[neighId]
-                neighIds.append([neighId, neigh])
-                distances.append(minDist)
+        pointsJustUsefulDimensions = [point[0:self.noDims] for point in pointsPartition]
+        pointsJustUsefulDimensions = np.array(pointsJustUsefulDimensions)
 
-                alreadyParsed.append(neigh)
-            else:
-                canContinue = 0
+        partitionTree = KDTree(pointsJustUsefulDimensions)
 
-        neighIds.sort(key=lambda x: x[1])
+        radius = self.expandFactor * closestMean
+        ind = partitionTree.query_radius(pointsJustUsefulDimensions[id_point:id_point+1], radius)
 
-        neighIdsFinal = [n_id[0] for n_id in neighIds]
-
-        return neighIdsFinal
+        return list(ind[0])
 
     def expandKnn(self, point_id, pointsPartition):
         '''
