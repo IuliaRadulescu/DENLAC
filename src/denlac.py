@@ -1,4 +1,9 @@
-from __future__ import division
+__author__ = "Rădulescu Iulia-Maria"
+__copyright__ = "Copyright 2017, University Politehnica of Bucharest"
+__license__ = "GNU GPL"
+__version__ = "0.1"
+__email__ = "iulia.radulescu@cs.pub.ro"
+__status__ = "Production"
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,8 +12,6 @@ from sklearn.neighbors.kde import KernelDensity, KDTree
 from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import estimate_bandwidth
 
-import sys
-import functools
 from random import randint
 import argparse
 import math
@@ -417,23 +420,15 @@ class Denlac:
                             pointsPartition[neigh_id][self.noDims] = self.id_cluster
                             self.expandKnn(neigh_id, pointsPartition)
 
-            innerPartitions = collections.defaultdict(list)
-            innerPartitionsFiltered = collections.defaultdict(list)
-            partIdInner = 0
-
             # ARRANGE STEP
-
+            # create partitions
+            innerPartitions = collections.defaultdict(list)
+            partIdInner = 0
             for i in range(noClustersPartition):
-                for pixel in pointsPartition:
-                    if (pixel[self.noDims] == i):
-                        innerPartitions[partIdInner].append(pixel)
+                innerPartitions[partIdInner] = [pixel for pixel in pointsPartition if pixel[self.noDims] == i]
                 partIdInner = partIdInner + 1
 
-            # add noise too
-            for pixel in pointsPartition:
-                if (pixel[self.noDims] == -1):
-                    innerPartitions[partIdInner].append(pixel)
-                    partIdInner = partIdInner + 1
+            noise += [pixel for pixel in pointsPartition if pixel[self.noDims] == -1]
 
             # filter partitions - eliminate the ones with a single point and add them to the noise list
             keysToDelete = list()
@@ -442,15 +437,13 @@ class Denlac:
                     keysToDelete.append(k)
                     # we save these points and assign them to the closest cluster
                     if (len(innerPartitions[k]) > 0):
-                        for pinner in innerPartitions[k]:
-                            noise.append(pinner)
+                        noise += [pixel for pixel in innerPartitions[k]]
+
             for k in keysToDelete:
                 del innerPartitions[k]
 
-            partIdFiltered = 0
-            for part_id_k in innerPartitions:
-                innerPartitionsFiltered[partIdFiltered] = innerPartitions[part_id_k]
-                partIdFiltered = partIdFiltered + 1
+            # reindex dict
+            innerPartitionsFiltered = dict(zip(range(0, len(innerPartitions)), list(innerPartitions.values())))
 
             for partIdInner in innerPartitionsFiltered:
                 finalPartitions[partId] = innerPartitionsFiltered[partIdInner]
