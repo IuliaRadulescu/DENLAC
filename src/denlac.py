@@ -400,7 +400,6 @@ class Denlac:
         for k in partition_dict:
 
             # EXPANSION STEP
-
             self.id_cluster = -1
             pointsPartition = partition_dict[k]
 
@@ -627,6 +626,8 @@ Denlac Algorithm
 '''
 if __name__ == "__main__":
 
+    start = time.time()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--filename', help = "the filename which contains the dataset")
     parser.add_argument('-nclusters', '--nclusters', type = int, help = "the desired number of clusters")
@@ -665,3 +666,6 @@ if __name__ == "__main__":
 
     denlacInstance = Denlac(no_clusters, no_bins, expand_factor, noDims, aggMethod, debugMode)
     cluster_points = denlacInstance.clusterDataset(dataset)
+
+    end = time.time()
+    print('It took ' + str(end - start))
