@@ -473,7 +473,6 @@ class Denlac:
         evaluationDict = {}
         point2cluster = {}
         point2class = {}
-        point2classAux = {}
 
         for point in dataset:
             clusterId = self.noDims
