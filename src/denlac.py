@@ -1,4 +1,4 @@
-__author__ = "Rădulescu Iulia-Maria"
+__author__ = "Radulescu Iulia-Maria"
 __copyright__ = "Copyright 2017, University Politehnica of Bucharest"
 __license__ = "GNU GPL"
 __version__ = "0.1"
@@ -476,25 +476,13 @@ class Denlac:
         point2classAux = {}
 
         for point in dataset:
-            clusterId = len(point) - 1
-            point2classAux[tuple(point[0:clusterId])] = point[clusterId]
-
-        listOfTuples = sorted(point2classAux.items() ,  key=lambda x: x[1])
-        # reindex values from 0 to n, but keep the point assignments
-        idx = 0
-        lastValue = listOfTuples[0][1]
-        print(lastValue)
-        for key, value in listOfTuples:
-            # if value has changed (it's an interruption 1,1,1, 2 - then increment the index, it's a new class
-            if (point2classAux[key] != lastValue):
-                idx += 1
-                lastValue = point2classAux[key]
-            point2class[key] = idx
+            clusterId = self.noDims
+            point2class[tuple(point[0:clusterId])] = point[clusterId]
 
         for clusterId in point2class.values():
             evaluationDict[clusterId] = {}
 
-        idx = 0
+        idx = 1
         for elem in clusterPoints:
             for point in clusterPoints[elem]:
                 indexDict = list()
