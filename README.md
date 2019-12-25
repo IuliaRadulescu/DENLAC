@@ -17,6 +17,7 @@ Run examples:
 * python src/denlac.py -f datasets/compound.txt -nclusters 6 -nbins 3 -expFactor 1 
 * python src/denlac.py -f datasets/d31.txt -nclusters 31 -nbins 7 -expFactor 0.1 -aggMethod 2
 * python src/denlac.py -f datasets/irisDenlacText.txt -nclusters 3 -nbins 5 -expFactor 0.45
+* python src/denlac.py -f datasets/beespecies.txt -nclusters 9 -nbins 3 -expFactor 0.25 -aggMethod 2
 -------------------------------------------------------------------------------------------------
 
 ## Datasets:

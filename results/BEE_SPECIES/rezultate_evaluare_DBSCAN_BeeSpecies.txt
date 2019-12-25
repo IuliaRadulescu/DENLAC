@@ -1,0 +1,6 @@
+Rezultate evaluare pentru setul de date /home/iuliamaria/DENLAC/DENLAC/datasets/beespecies.txt
+Purity: 1.0000000000000002
+Entropy: 0.0
+RI: 0.9636363636363636
+ARI: 0.0
+
