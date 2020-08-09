@@ -165,7 +165,7 @@ class Denlac:
         '''
 		compute pdf and its values for points in dataset_xy
 		'''
-        kernel = st.gaussian_kde(eachDimensionValues)
+        kernel = st.gaussian_kde(eachDimensionValues, bw_method='scott')
         pdf = kernel.evaluate(eachDimensionValues)
 
         return pdf
@@ -184,16 +184,12 @@ class Denlac:
     def computePdfKde(self, dataset_xy, eachDimensionValues):
 
         values = np.vstack(eachDimensionValues)
-        kernel = st.gaussian_kde(values)
-        print("norm_factor = " + str(kernel._norm_factor))
-
-        if (kernel._norm_factor != 0):
-            # not 0, use scipy
+        try: 
             pdf = self.computePdfKdeScipy(eachDimensionValues)
-        else:
-            # 0, use sklearn
+        except np.linalg.LinAlgError:
             pdf = self.computePdfKdeSklearn(dataset_xy)
-        return pdf
+        finally:
+            return pdf
 
     def evaluatePdfKdeSklearn(self, datasetXY, eachDimensionValues):
         # pdf sklearn
