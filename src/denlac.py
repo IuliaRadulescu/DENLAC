@@ -331,7 +331,7 @@ class Denlac:
         pointsRelevantDimensions = [point[0:self.noDims] for point in pointsPartition]
         pointsRelevantDimensions = np.array(pointsRelevantDimensions)
 
-        ns = 3
+        ns = self.noDims + 1
         nbrs = NearestNeighbors(n_neighbors=ns).fit(pointsRelevantDimensions)
         distances, indices = nbrs.kneighbors(pointsRelevantDimensions)
         distanceDec = sorted(distances[:, ns - 1], reverse=True)

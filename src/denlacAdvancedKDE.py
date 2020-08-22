@@ -164,7 +164,9 @@ class Denlac:
 
     def computePdfKde(self, dataset):
 
-        x, pdf = FFTKDE(kernel="gaussian").fit(dataset).evaluate()
+        print(dataset)
+
+        x, pdf = FFTKDE(kernel='gaussian', bw='silverman').fit(dataset).evaluate()
 
         return pdf
 
