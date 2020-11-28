@@ -16,7 +16,7 @@ Run examples:
 * python src/denlac.py -f datasets/flame.txt -nclusters 2 -nbins 2 -expFactor 0.5
 * python src/denlac.py -f datasets/compound.txt -nclusters 6 -nbins 3 -expFactor 1 
 * python src/denlac.py -f datasets/d31.txt -nclusters 31 -nbins 7 -expFactor 0.1 -aggMethod 2
-* python src/denlac.py -f datasets/irisDenlacText.txt -nclusters 3 -nbins 2 -expFactor 0.25
+* python src/denlac.py -f datasets/irisDenlacText.txt -nclusters 3 -nbins 2 -expFactor 0.2
 * python src/denlac.py -f datasets/beespecies.txt -nclusters 9 -nbins 2 -expFactor 0.1 -aggMethod 2
 -------------------------------------------------------------------------------------------------
 
@@ -142,3 +142,10 @@ Purity:   1.0
 Entropy:  0.0
 RI        1.0
 ARI       1.0
+
+## Tetragonula
+* Evaluation results:
+Purity:   0.8638297872340426
+Entropy:  0.18953408613065056
+RI        0.8884524458992544
+ARI       0.6584817795847978

@@ -182,8 +182,6 @@ class Denlac:
         return pdf
 
     def computePdfKde(self, dataset_xy, eachDimensionValues):
-
-        values = np.vstack(eachDimensionValues)
         try: 
             pdf = self.computePdfKdeScipy(eachDimensionValues)
         except np.linalg.LinAlgError:
@@ -191,33 +189,6 @@ class Denlac:
         finally:
             return pdf
 
-    def evaluatePdfKdeSklearn(self, datasetXY, eachDimensionValues):
-        # pdf sklearn
-        x = list()
-        y = list()
-
-        x = eachDimensionValues[0]
-        y = eachDimensionValues[1]
-
-        xmin = min(x) - 2
-        xmax = max(x) + 2
-
-        ymin = min(y) - 2
-        ymax = max(y) + 2
-
-        # Peform the kernel density estimate
-        xx, yy = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
-        xxRavel = xx.ravel()
-        yyRavel = yy.ravel()
-        datasetXXYY = list()
-        for q in range(len(xxRavel)):
-            datasetXXYY.append([xxRavel[q], yyRavel[q]])
-        bw_scott = self.computeScipyBandwidth(datasetXY, eachDimensionValues)
-        kde = KernelDensity(kernel='gaussian', bandwidth=bw_scott).fit(datasetXY)
-        log_pdf = kde.score_samples(datasetXXYY)
-        pdf = np.exp(log_pdf)
-        f = np.reshape(pdf.T, xx.shape)
-        return (f, xmin, xmax, ymin, ymax, xx, yy)
 
     def evaluatePdfKdeScipy(self, eachDimensionValues):
         '''
@@ -285,7 +256,6 @@ class Denlac:
         quartile1, quartile3 = np.percentile(ys, [25, 75])
         iqr = quartile3 - quartile1
         lowerBound = quartile1 - (iqr * 1.5)
-        upperBound = quartile3 + (iqr * 1.5)
         outliersIqr = list()
         for idx in range(len(ys)):
             if ys[idx] < lowerBound:
@@ -331,7 +301,7 @@ class Denlac:
         pointsRelevantDimensions = [point[0:self.noDims] for point in pointsPartition]
         pointsRelevantDimensions = np.array(pointsRelevantDimensions)
 
-        ns = self.noDims + 1
+        ns = 2 * self.noDims - 1
         nbrs = NearestNeighbors(n_neighbors=ns).fit(pointsRelevantDimensions)
         distances, indices = nbrs.kneighbors(pointsRelevantDimensions)
         distanceDec = sorted(distances[:, ns - 1], reverse=True)
