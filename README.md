@@ -20,6 +20,15 @@ Run examples:
 * python src/denlac.py -f datasets/beespecies.txt -nclusters 9 -nbins 2 -expFactor 0.1 -aggMethod 2
 -------------------------------------------------------------------------------------------------
 
+## Dependencies:
+
+* numpy             1.19.4
+* scikit-learn      0.23.2
+* scipy             1.5.4
+* numpy             1.19.4
+* matplotlib        3.3.3
+
+
 ## Datasets:
 
 ### Aggregation
