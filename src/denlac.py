@@ -112,14 +112,14 @@ class Denlac:
         partId = 0
 
         for k in final_partitions:
-            partitions[partId] = list()
+            partitions[partId] = []
             partId = partId + 1
 
         partId = 0
 
         for k in final_partitions:
             for pixel in final_partitions[k]:
-                kDimensionalPoint = list()
+                kDimensionalPoint = []
                 for kDim in range(self.noDims):
                     kDimensionalPoint.append(pixel[kDim])
                 partitions[partId].append(kDimensionalPoint)
@@ -194,8 +194,8 @@ class Denlac:
         '''
 		pdf evaluation scipy - only for two dimensions, it generates the blue density levels plot
 		'''
-        x = list()
-        y = list()
+        x = []
+        y = []
 
         x = eachDimensionValues[0]
         y = eachDimensionValues[1]
@@ -241,7 +241,7 @@ class Denlac:
             for dim in range(self.noDims):
                 sumEachDim[dim] = sumEachDim[dim] + object[dim]
 
-        centroidCoords = list()
+        centroidCoords = []
         for sumId in sumEachDim:
             centroidCoords.append(round(sumEachDim[sumId] / len(objects), 2))
 
@@ -256,7 +256,7 @@ class Denlac:
         quartile1, quartile3 = np.percentile(ys, [25, 75])
         iqr = quartile3 - quartile1
         lowerBound = quartile1 - (iqr * 1.5)
-        outliersIqr = list()
+        outliersIqr = []
         for idx in range(len(ys)):
             if ys[idx] < lowerBound:
                 outliersIqr.append(idx)
@@ -298,15 +298,16 @@ class Denlac:
 
     def getCorrectRadius(self, pointsPartition):
 
-        pointsRelevantDimensions = [point[0:self.noDims] for point in pointsPartition]
-        pointsRelevantDimensions = np.array(pointsRelevantDimensions)
+        pointsRelevantDimensions = np.array([point[0:self.noDims] for point in pointsPartition])
 
         ns = 2 * self.noDims - 1
         nbrs = NearestNeighbors(n_neighbors=ns).fit(pointsRelevantDimensions)
-        distances, indices = nbrs.kneighbors(pointsRelevantDimensions)
-        distanceDec = sorted(distances[:, ns - 1], reverse=True)
+        distances, _ = nbrs.kneighbors(pointsRelevantDimensions)
 
-        distanceDec = np.array(distanceDec)
+        # distances to the kth nearest neighbor, sorted
+        distanceDec = np.array(sorted(distances[:, ns - 1], reverse=True))
+
+        # get inflection point of the distanceDec plot
         maxSlopeIdx = np.argmax(distanceDec[:-1] - distanceDec[1:])
 
         return distanceDec[maxSlopeIdx]
@@ -322,12 +323,12 @@ class Denlac:
 
         closestMean = self.getCorrectRadius(pointsPartition)
 
-        pointsJustUsefulDimensions = [point[0:self.noDims] for point in pointsPartition]
-        pointsJustUsefulDimensions = np.array(pointsJustUsefulDimensions)
+        pointsJustUsefulDimensions = np.array([point[0:self.noDims] for point in pointsPartition])
 
         partitionTree = KDTree(pointsJustUsefulDimensions)
 
         radius = self.expandFactor * closestMean
+
         ind = partitionTree.query_radius(pointsJustUsefulDimensions[id_point:id_point+1], radius)
 
         return list(ind[0])
@@ -358,7 +359,7 @@ class Denlac:
     def splitPartitions(self, partition_dict):
 
         print("Expand factor " + str(self.expandFactor))
-        noise = list()
+        noise = []
         noClustersPartition = 1
         partId = 0
         finalPartitions = collections.defaultdict(list)
@@ -396,7 +397,7 @@ class Denlac:
             noise += [pixel for pixel in pointsPartition if pixel[self.noDims] == -1]
 
             # filter partitions - eliminate the ones with a single point and add them to the noise list
-            keysToDelete = list()
+            keysToDelete = []
             for k in innerPartitions:
                 if (len(innerPartitions[k]) <= 1):
                     keysToDelete.append(k)
@@ -450,7 +451,7 @@ class Denlac:
         idx = 1
         for elem in clusterPoints:
             for point in clusterPoints[elem]:
-                indexDict = list()
+                indexDict = []
                 for dim in range(self.noDims):
                     indexDict.append(point[dim])
                 point2cluster[tuple(indexDict)] = idx
@@ -500,19 +501,19 @@ class Denlac:
 
         if(self.noDims==2 and self.debugMode == 1):
             #plot pdf contour plot
-            f,xmin, xmax, ymin, ymax, xx, yy = self.evaluatePdfKdeScipy(list(np.array(datasetXY).transpose())) #pentru afisare zone dense albastre
+            f,_, _, _, _, xx, yy = self.evaluatePdfKdeScipy(list(np.array(datasetXY).transpose())) #pentru afisare zone dense albastre
             plt.contourf(xx, yy, f, cmap='Blues') #pentru afisare zone dense albastre
 
         '''
 		Split the dataset in density bins
 		'''
-        pixels_per_bin, bins = np.histogram(pdf, bins=self.no_bins)
+        _, bins = np.histogram(pdf, bins=self.no_bins)
 
         for idxBin in range((len(bins) - 1)):
             color = self.randomColorScaled()
             for idxPoint in range(len(datasetXY)):
                 if (pdf[idxPoint] >= bins[idxBin] and pdf[idxPoint] <= bins[idxBin + 1]):
-                    element_to_append = list()
+                    element_to_append = []
                     for dim in range(self.noDims):
                         element_to_append.append(datasetXY[idxPoint][dim])
                     # additional helpful values
@@ -600,7 +601,7 @@ if __name__ == "__main__":
     debugMode = args.debugMode
 
     # read from file
-    dataset = list()
+    dataset = []
 
     with open(filename) as f:
         content = f.readlines()
@@ -611,7 +612,7 @@ if __name__ == "__main__":
     for l in content:
         aux = l.split(',')
         noDims = len(aux) - 1
-        listOfCoords = list()
+        listOfCoords = []
         for dim in range(noDims):
             listOfCoords.append(float(aux[dim]))
         listOfCoords.append(int(aux[noDims]))
