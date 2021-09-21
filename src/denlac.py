@@ -364,70 +364,70 @@ class Denlac:
             elementsPartition[elementId][self.noDims] = -1
             elementsPartition[elementId][self.noDims + 2] = 1
 
-    def splitPartitions(self, partitionDict):
+    def splitDensityBins(self, densityBins):
 
         print("Expand factor " + str(self.expandFactor))
         noise = []
         noClustersPartition = 1
         partId = 0
-        finalPartitions = collections.defaultdict(list)
+        adjacentComponents = collections.defaultdict(list)
 
-        for k in partitionDict:
+        for k in densityBins:
 
             # EXPANSION STEP
             self.idCluster = -1
-            elementsPartition = partitionDict[k]
+            densityBin = densityBins[k]
 
-            closestMean = self.getCorrectRadius(elementsPartition)
+            closestMean = self.getCorrectRadius(densityBin)
 
-            for elementId in range(len(elementsPartition)):
+            for elementId in range(len(densityBin)):
                 
-                if (elementsPartition[elementId][self.noDims] == -1):
+                if (densityBin[elementId][self.noDims] == -1):
                     self.idCluster = self.idCluster + 1
                     noClustersPartition = noClustersPartition + 1
-                    elementsPartition[elementId][self.noDims + 2] = 1
-                    elementsPartition[elementId][self.noDims] = self.idCluster
+                    densityBin[elementId][self.noDims + 2] = 1
+                    densityBin[elementId][self.noDims] = self.idCluster
                     
-                    neighIds = self.getClosestKNeigh(elementId, elementsPartition, closestMean)
+                    neighIds = self.getClosestKNeigh(elementId, densityBin, closestMean)
 
                     for neighId in neighIds:
-                        if (elementsPartition[neighId][self.noDims] == -1):
-                            elementsPartition[neighId][self.noDims + 2] = 1
-                            elementsPartition[neighId][self.noDims] = self.idCluster
-                            self.expandKnn(neighId, elementsPartition)
+                        if (densityBin[neighId][self.noDims] == -1):
+                            densityBin[neighId][self.noDims + 2] = 1
+                            densityBin[neighId][self.noDims] = self.idCluster
+                            self.expandKnn(neighId, densityBin)
 
             # ARRANGE STEP
             # create partitions
-            innerPartitions = collections.defaultdict(list)
+            intermediaryAdjacentComponents = collections.defaultdict(list)
             partIdInner = 0
             for i in range(noClustersPartition):
-                innerPartitions[partIdInner] = [
-                    partitionElement for partitionElement in elementsPartition if partitionElement[self.noDims] == i]
+                intermediaryAdjacentComponents[partIdInner] = [
+                    element for element in densityBin if element[self.noDims] == i]
                 partIdInner = partIdInner + 1
 
-            noise += [partitionElement for partitionElement in elementsPartition if partitionElement[self.noDims] == -1]
+            noise += [element for element in densityBin if element[self.noDims] == -1]
 
             # filter partitions - eliminate the ones with a single element and add them to the noise list
             keysToDelete = []
-            for k in innerPartitions:
-                if (len(innerPartitions[k]) <= 1):
+            for k in intermediaryAdjacentComponents:
+                if (len(intermediaryAdjacentComponents[k]) <= 1):
                     keysToDelete.append(k)
                     # we save these elements and assign them to the closest cluster
-                    if (len(innerPartitions[k]) > 0):
-                        noise += [partitionElement for partitionElement in innerPartitions[k]]
+                    if (len(intermediaryAdjacentComponents[k]) > 0):
+                        noise += [element for element in intermediaryAdjacentComponents[k]]
 
             for k in keysToDelete:
-                del innerPartitions[k]
+                del intermediaryAdjacentComponents[k]
 
             # reindex dict
-            innerPartitionsFiltered = dict(
-                zip(range(0, len(innerPartitions)), list(innerPartitions.values())))
+            intermediaryAdjacentComponentsFiltered = dict(
+                zip(range(0, len(intermediaryAdjacentComponents)), list(intermediaryAdjacentComponents.values())))
 
-            for partIdInner in innerPartitionsFiltered:
-                finalPartitions[partId] = innerPartitionsFiltered[partIdInner]
+            for partIdInner in intermediaryAdjacentComponentsFiltered:
+                adjacentComponents[partId] = intermediaryAdjacentComponentsFiltered[partIdInner]
                 partId = partId + 1
 
-        return (finalPartitions, noise)
+        return (adjacentComponents, noise)
 
     def addNoiseToFinalPartitions(self, noise, joinedPartitions):
         noiseToPartition = collections.defaultdict(list)
@@ -527,7 +527,7 @@ class Denlac:
 		'''
         _, bins = np.histogram(pdf, bins=self.noBins)
 
-        intermediaryPartitionsDict = collections.defaultdict(list)
+        densityBins = collections.defaultdict(list)
 
         for idxBin in range((len(bins) - 1)):
             color = self.randomColorScaled()
@@ -543,7 +543,7 @@ class Denlac:
                     binElement.append(pdf[idxElement])
                     binElement.append(-1)  # was the element already parsed?
 
-                    intermediaryPartitionsDict[idxBin].append(binElement)
+                    densityBins[idxBin].append(binElement)
 
                     # scatter plot for 2d and 3d if debug mode is on
                     if (self.noDims == 2 and self.debugMode == 1):
@@ -558,8 +558,7 @@ class Denlac:
         '''
 		Density levels bins distance split
 		'''
-        adjacentComponents, noise = self.splitPartitions(
-            intermediaryPartitionsDict)  # functie care scindeaza partitiile
+        adjacentComponents, noise = self.splitDensityBins(densityBins)  # split the densityBins
 
         print('noise elements ' + str(len(noise)) +
               ' from ' + str(len(dataset)) + ' elements')
@@ -575,8 +574,7 @@ class Denlac:
         '''
         Joining partitions based on distances
          '''
-        joinedPartitions = self.joinPartitions(
-            adjacentComponents, self.noClusters)
+        joinedPartitions = self.joinPartitions(adjacentComponents, self.noClusters)
 
         '''
         Adding what was classified as noise to the corresponding partition
