@@ -313,15 +313,13 @@ class Denlac:
         return distanceDec[maxSlopeIdx]
 
 
-    def getClosestKNeigh(self, point, id_point, pointsPartition):
+    def getClosestKNeigh(self, point, id_point, pointsPartition, closestMean):
         '''
 		Get a point's closest v neighbours
 		v is not a constant!! for each point you keep adding neighbours
 		untill the distance from the next neigbour and the point is larger than
 		expand_factor * closestMean (closestMean este calculata de functia anterioara)
 		'''
-
-        closestMean = self.getCorrectRadius(pointsPartition)
 
         pointsJustUsefulDimensions = np.array([point[0:self.noDims] for point in pointsPartition])
 
@@ -343,7 +341,8 @@ class Denlac:
 		'''
 
         point = pointsPartition[point_id]
-        neigh_ids = self.getClosestKNeigh(point, point_id, pointsPartition)
+        closestMean = self.getCorrectRadius(pointsPartition)
+        neigh_ids = self.getClosestKNeigh(point, point_id, pointsPartition, closestMean)
 
         if (len(neigh_ids) > 0):
             pointsPartition[point_id][self.noDims] = self.id_cluster
@@ -370,6 +369,8 @@ class Denlac:
             self.id_cluster = -1
             pointsPartition = partition_dict[k]
 
+            closestMean = self.getCorrectRadius(pointsPartition)
+
             for pixel_id in range(len(pointsPartition)):
                 pixel = pointsPartition[pixel_id]
 
@@ -378,7 +379,7 @@ class Denlac:
                     noClustersPartition = noClustersPartition + 1
                     pointsPartition[pixel_id][self.noDims + 2] = 1
                     pointsPartition[pixel_id][self.noDims] = self.id_cluster
-                    neigh_ids = self.getClosestKNeigh(pixel, pixel_id, pointsPartition)
+                    neigh_ids = self.getClosestKNeigh(pixel, pixel_id, pointsPartition, closestMean)
 
                     for neigh_id in neigh_ids:
                         if (pointsPartition[neigh_id][self.noDims] == -1):
