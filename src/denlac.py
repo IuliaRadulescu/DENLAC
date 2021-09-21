@@ -35,6 +35,9 @@ class Denlac:
 
         self.idCluster = -1
 
+        self.ALREADY_PARSED_FALSE = -1
+        self.ALREADY_PARSED_TRUE = 1
+
     def rebuildDictIndexes(self, dictToRebuild, distBetweenPartitionsCache):
 
         newDict = dict()
@@ -116,21 +119,16 @@ class Denlac:
     def joinPartitions(self, adjacentComponents, finalNoClusters):
 
         partitions = dict()
-        partId = 0
 
-        for k in adjacentComponents:
-            partitions[partId] = []
-            partId = partId + 1
+        for k in range(len(adjacentComponents)):
+            partitions[k] = []
 
         partId = 0
-
         for k in adjacentComponents:
             for element in adjacentComponents[k]:
-                kDimensionalElement = []
-                for kDim in range(self.noDims):
-                    kDimensionalElement.append(element[kDim])
+                kDimensionalElement = [element[kDim] for kDim in range(self.noDims)]
                 partitions[partId].append(kDimensionalElement)
-            partId = partId + 1
+            partId += 1
 
         distBetweenPartitionsCache = {}
         distancesIndices = self.computeDistanceIndices(partitions, distBetweenPartitionsCache)
@@ -201,8 +199,8 @@ class Denlac:
 
     def evaluatePdfKdeScipy(self, eachDimensionValues):
         '''
-                pdf evaluation scipy - only for two dimensions, it generates the blue density levels plot
-                '''
+            pdf evaluation scipy - only for two dimensions, it generates the blue density levels plot
+        '''
         x = []
         y = []
 
@@ -260,30 +258,24 @@ class Denlac:
 
     def outliersIqr(self, ys):
         '''
-                Outliers detection with IQR
-                '''
+            Outliers detection with IQR
+        '''
         quartile1, quartile3 = np.percentile(ys, [25, 75])
         iqr = quartile3 - quartile1
         lowerBound = quartile1 - (iqr * 1.5)
         outliersIqr = []
-        for idx in range(len(ys)):
-            if ys[idx] < lowerBound:
-                outliersIqr.append(idx)
+        outliersIqr = [idx for idx in range(len(ys)) if ys[idx] < lowerBound]
         return outliersIqr
 
     def calculateAveragePairwise(self, cluster1, cluster2):
 
-        avgPairwise = 0
-        sumPairwise = 0
-        nr = 0
+        pairwiseDistances = []
 
         for element1 in cluster1:
             for element2 in cluster2:
-                distBetween = self.DistFunc(element1, element2)
-                sumPairwise = sumPairwise + distBetween
-                nr = nr + 1
+                pairwiseDistances.append(self.DistFunc(element1, element2))
 
-        avgPairwise = sumPairwise / nr
+        avgPairwise = sum(pairwiseDistances) / len(pairwiseDistances)
         return avgPairwise
 
     def calculateSmallestPairwise(self, cluster1, cluster2):
@@ -330,8 +322,7 @@ class Denlac:
             expand_factor * closestMean
         '''
 
-        justUsefulDimensions = np.array(
-            [element[0:self.noDims] for element in elementsPartition])
+        justUsefulDimensions = np.array([element[0:self.noDims] for element in elementsPartition])
 
         partitionTree = KDTree(justUsefulDimensions)
 
@@ -355,18 +346,19 @@ class Denlac:
 
         if (len(neighIds) > 0):
             elementsPartition[elementId][self.noDims] = self.idCluster
-            elementsPartition[elementId][self.noDims + 2] = 1
+            elementsPartition[elementId][self.noDims + 1] = self.ALREADY_PARSED_TRUE
 
             for neighId in neighIds:
-                if (elementsPartition[neighId][self.noDims + 2] == -1):
+                if (elementsPartition[neighId][self.noDims + 1] == self.ALREADY_PARSED_FALSE):
                     self.expandKnn(neighId, elementsPartition)
         else:
             elementsPartition[elementId][self.noDims] = -1
-            elementsPartition[elementId][self.noDims + 2] = 1
+            elementsPartition[elementId][self.noDims + 1] = self.ALREADY_PARSED_TRUE
 
     def splitDensityBins(self, densityBins):
 
         print("Expand factor " + str(self.expandFactor))
+
         noise = []
         noClustersPartition = 1
         partId = 0
@@ -385,25 +377,23 @@ class Denlac:
                 if (densityBin[elementId][self.noDims] == -1):
                     self.idCluster = self.idCluster + 1
                     noClustersPartition = noClustersPartition + 1
-                    densityBin[elementId][self.noDims + 2] = 1
+                    densityBin[elementId][self.noDims + 1] = self.ALREADY_PARSED_TRUE
                     densityBin[elementId][self.noDims] = self.idCluster
                     
                     neighIds = self.getClosestKNeigh(elementId, densityBin, closestMean)
 
                     for neighId in neighIds:
                         if (densityBin[neighId][self.noDims] == -1):
-                            densityBin[neighId][self.noDims + 2] = 1
+                            densityBin[neighId][self.noDims + 1] = self.ALREADY_PARSED_TRUE
                             densityBin[neighId][self.noDims] = self.idCluster
                             self.expandKnn(neighId, densityBin)
 
             # ARRANGE STEP
             # create partitions
             intermediaryAdjacentComponents = collections.defaultdict(list)
-            partIdInner = 0
-            for i in range(noClustersPartition):
-                intermediaryAdjacentComponents[partIdInner] = [
-                    element for element in densityBin if element[self.noDims] == i]
-                partIdInner = partIdInner + 1
+            clusterId = 0
+            for clusterId in range(noClustersPartition):
+                intermediaryAdjacentComponents[clusterId] = [element for element in densityBin if element[self.noDims] == clusterId]
 
             noise += [element for element in densityBin if element[self.noDims] == -1]
 
@@ -420,8 +410,7 @@ class Denlac:
                 del intermediaryAdjacentComponents[k]
 
             # reindex dict
-            intermediaryAdjacentComponentsFiltered = dict(
-                zip(range(0, len(intermediaryAdjacentComponents)), list(intermediaryAdjacentComponents.values())))
+            intermediaryAdjacentComponentsFiltered = dict(zip(range(len(intermediaryAdjacentComponents)), list(intermediaryAdjacentComponents.values())))
 
             for partIdInner in intermediaryAdjacentComponentsFiltered:
                 adjacentComponents[partId] = intermediaryAdjacentComponentsFiltered[partIdInner]
@@ -540,8 +529,7 @@ class Denlac:
                     # additional helpful values
                     # the split nearest-neighbour cluster the element belongs to
                     binElement.append(-1)
-                    binElement.append(pdf[idxElement])
-                    binElement.append(-1)  # was the element already parsed?
+                    binElement.append(self.ALREADY_PARSED_FALSE)  # was the element already parsed?
 
                     densityBins[idxBin].append(binElement)
 
