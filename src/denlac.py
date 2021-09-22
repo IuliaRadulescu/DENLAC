@@ -55,8 +55,7 @@ class Denlac:
             if(keyTuple[0] in oldNewIndexesCorrelation and keyTuple[1] in oldNewIndexesCorrelation):
                 newI = oldNewIndexesCorrelation[keyTuple[0]]
                 newJ = oldNewIndexesCorrelation[keyTuple[1]]
-                newCacheDict[(newI, newJ)
-                             ] = distBetweenPartitionsCache[keyTuple]
+                newCacheDict[(newI, newJ)] = distBetweenPartitionsCache[keyTuple]
 
         return newDict, newCacheDict, newDictIdx
 
@@ -69,17 +68,13 @@ class Denlac:
                     distBetweenPartitions = -1
                 else:
                     if (i, j) in distBetweenPartitionsCache:
-                        distBetweenPartitions = distBetweenPartitionsCache[(
-                            i, j)]
+                        distBetweenPartitions = distBetweenPartitionsCache[(i, j)]
                     else:
                         if (self.aggMethod == 2):
-                            distBetweenPartitions = self.calculateCentroid(
-                                partitions[i], partitions[j])
+                            distBetweenPartitions = self.calculateCentroid(partitions[i], partitions[j])
                         else:
-                            distBetweenPartitions = self.calculateSmallestPairwise(
-                                partitions[i], partitions[j])
-                        distBetweenPartitionsCache[(
-                            i, j)] = distBetweenPartitions
+                            distBetweenPartitions = self.calculateSmallestPairwise(partitions[i], partitions[j])
+                        distBetweenPartitionsCache[(i, j)] = distBetweenPartitions
                 distances.append(distBetweenPartitions)
 
         # sort by distance
@@ -91,7 +86,6 @@ class Denlac:
         return finalIndices
 
     # i = index, x = amount of columns, y = amount of rows
-
     def indexToCoords(self, index, columns, rows):
 
         for i in range(rows):
@@ -118,17 +112,8 @@ class Denlac:
 
     def joinPartitions(self, adjacentComponents, finalNoClusters):
 
-        partitions = dict()
-
-        for k in range(len(adjacentComponents)):
-            partitions[k] = []
-
-        partId = 0
-        for k in adjacentComponents:
-            for element in adjacentComponents[k]:
-                kDimensionalElement = [element[kDim] for kDim in range(self.noDims)]
-                partitions[partId].append(kDimensionalElement)
-            partId += 1
+        partitionsList = [[element[0:self.noDims] for element in adjacentComponents[k]] for k in adjacentComponents] 
+        partitions = dict(zip(range(len(partitionsList)), partitionsList))
 
         distBetweenPartitionsCache = {}
         distancesIndices = self.computeDistanceIndices(partitions, distBetweenPartitionsCache)
@@ -137,8 +122,7 @@ class Denlac:
 
             smallestDistancesIndex = distancesIndices[0]
 
-            (j, i) = self.indexToCoords(
-                smallestDistancesIndex, len(partitions), len(partitions))
+            (j, i) = self.indexToCoords(smallestDistancesIndex, len(partitions), len(partitions))
             partitionToAdd = partitions[i] + partitions[j]
             partitionToAdd = self.sortAndDeduplicate(partitionToAdd)
 
@@ -151,8 +135,7 @@ class Denlac:
             if ((i, j) in distBetweenPartitionsCache):
                 del distBetweenPartitionsCache[(i, j)]
 
-            (partitions, distBetweenPartitionsCache, newDictIdx) = self.rebuildDictIndexes(
-                partitions, distBetweenPartitionsCache)
+            (partitions, distBetweenPartitionsCache, newDictIdx) = self.rebuildDictIndexes(partitions, distBetweenPartitionsCache)
 
             partitions[newDictIdx] = partitionToAdd
 
