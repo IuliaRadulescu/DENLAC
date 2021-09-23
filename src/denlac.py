@@ -282,8 +282,7 @@ class Denlac:
 
     def getCorrectRadius(self, elementsPartition):
 
-        justRelevantDimensions = np.array(
-            [element[0:self.noDims] for element in elementsPartition])
+        justRelevantDimensions = np.array([element[0:self.noDims] for element in elementsPartition])
 
         ns = 2 * self.noDims - 1
         nbrs = NearestNeighbors(n_neighbors=ns).fit(justRelevantDimensions)
@@ -307,13 +306,22 @@ class Denlac:
 
         justUsefulDimensions = np.array([element[0:self.noDims] for element in elementsPartition])
 
-        partitionTree = KDTree(justUsefulDimensions)
-
         radius = self.expandFactor * closestMean
 
-        ind = partitionTree.query_radius(justUsefulDimensions[elementId:elementId+1], radius)
+        neighIdsToDistances = {}
 
-        return list(ind[0])
+        for elementId2 in range(len(justUsefulDimensions)):
+            if (elementId == elementId2):
+                continue
+            neighIdsToDistances[elementId2] = self.DistFunc(justUsefulDimensions[elementId], justUsefulDimensions[elementId2])
+
+        closestKNeigh = []
+
+        for key, distance in neighIdsToDistances.items():
+            if distance <= radius:
+                closestKNeigh.append(key)
+
+        return closestKNeigh
 
     def expandKnn(self, elementId, elementsPartition):
         '''
