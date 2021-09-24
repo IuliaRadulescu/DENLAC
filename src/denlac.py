@@ -7,9 +7,9 @@ __status__ = "Production"
 
 import numpy as np
 import matplotlib.pyplot as plt
+from numpy.core.fromnumeric import sort
 import scipy.stats as st
-from sklearn.neighbors.kde import KernelDensity, KDTree
-from sklearn.neighbors import NearestNeighbors
+from sklearn.neighbors.kde import KernelDensity
 from sklearn.cluster import estimate_bandwidth
 
 from random import randint
@@ -280,16 +280,38 @@ class Denlac:
 
         return dist
 
+    def computeDistanceMatrix(self, elements):
+
+        elementsNr = len(elements)
+
+        # compute distance matrix
+        distanceMatrix = np.zeros((elementsNr, elementsNr))
+
+        for elementId1 in range(elementsNr):
+            for elementId2 in range(elementsNr):
+                distanceMatrix[elementId1][elementId2] = self.DistFunc(elements[elementId1], elements[elementId2])
+        return distanceMatrix
+
+    def getDistancesToKthNeigh(self, kthNeigh, elements):
+
+        distanceMatrix = self.computeDistanceMatrix(elements)
+
+        distanceMatrix.sort(axis=1)
+
+        # compute distances to closest K neigh
+        distancesToClosestK = distanceMatrix[:, kthNeigh] 
+
+        # return k distances, sorted descending
+        return np.array(sorted(distancesToClosestK, reverse=True))
+
     def getCorrectRadius(self, elementsPartition):
 
         justRelevantDimensions = np.array([element[0:self.noDims] for element in elementsPartition])
 
         ns = 2 * self.noDims - 1
-        nbrs = NearestNeighbors(n_neighbors=ns).fit(justRelevantDimensions)
-        distances, _ = nbrs.kneighbors(justRelevantDimensions)
 
         # distances to the kth nearest neighbor, sorted
-        distanceDec = np.array(sorted(distances[:, ns - 1], reverse=True))
+        distanceDec = self.getDistancesToKthNeigh(ns - 1, justRelevantDimensions)
 
         # get inflection element of the distanceDec plot
         maxSlopeIdx = np.argmax(distanceDec[:-1] - distanceDec[1:])
